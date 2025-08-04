@@ -57,7 +57,7 @@ def send_email_otp(email):
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login("crackerdeba@gmail.com", "your_app_password")  # Use Gmail App Password!
+            server.login("crackerdeba@gmail.com", "@Truesilver8")  # Use Gmail App Password!
             server.send_message(msg)
         return otp
     except Exception as e:
