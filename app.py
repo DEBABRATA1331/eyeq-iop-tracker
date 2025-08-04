@@ -74,10 +74,9 @@ def index():
 def login():
     if request.method == 'POST':
         email = request.form['email'].strip().lower()
-        phone = request.form['phone'].strip()
 
-        if not email or not phone:
-            flash("Both email and phone are required!", "danger")
+        if not email:
+            flash("Email is required!", "danger")
             return redirect(url_for('login'))
 
         otp = send_email_otp(email)
@@ -88,11 +87,12 @@ def login():
         session['otp'] = otp
         session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).timestamp()
         session['email'] = email
-        session['phone'] = phone
+
         flash("OTP sent to your email.", "info")
         return redirect(url_for('verify_otp'))
 
     return render_template('login.html')
+
 
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
@@ -102,39 +102,40 @@ def verify_otp():
         expiry = session.get('otp_expiry')
 
         if not expiry or datetime.now().timestamp() > expiry:
-            flash("OTP expired. Please request a new one.", "warning")
+            flash("OTP expired. Please login again.", "warning")
             return redirect(url_for('login'))
 
         if entered == correct:
             email = session['email']
-            phone = session['phone']
             user_id = str(uuid.uuid4())
 
             try:
                 with get_db_connection() as con:
                     with con.cursor() as cur:
                         cur.execute("""
-                            INSERT INTO users (id, email, phone)
-                            VALUES (%s, %s, %s)
+                            INSERT INTO users (id, email)
+                            VALUES (%s, %s)
                             ON CONFLICT (email) DO NOTHING;
-                        """, (user_id, email, phone))
+                        """, (user_id, email))
                         con.commit()
             except Exception as e:
                 print("DB error:", e)
                 flash("Database error occurred.", "danger")
                 return redirect(url_for('login'))
 
+            # Clear OTP session data
             session.pop('otp', None)
             session.pop('otp_expiry', None)
+
             session['authenticated'] = True
             session['email'] = email
-            session['phone'] = phone
             flash("Login successful!", "success")
             return redirect(url_for('dashboard'))
         else:
             flash("Incorrect OTP. Please try again.", "danger")
 
     return render_template('verify_otp.html')
+
 
 @app.route('/resend_otp')
 def resend_otp():
@@ -143,9 +144,12 @@ def resend_otp():
         return redirect(url_for('login'))
 
     new_otp = send_email_otp(session['email'])
-    session['otp'] = new_otp
-    session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).timestamp()
-    flash("OTP resent to your email.", "info")
+    if new_otp:
+        session['otp'] = new_otp
+        session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).timestamp()
+        flash("OTP resent to your email.", "info")
+    else:
+        flash("Failed to resend OTP.", "danger")
     return redirect(url_for('verify_otp'))
 
 @app.route('/dashboard')
