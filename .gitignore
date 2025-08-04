@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+instance/
+.env
+.env.*
+*.sqlite3
+*.db
+venv/
+.idea/
+.vscode/
+.DS_Store
+*.egg-info/
