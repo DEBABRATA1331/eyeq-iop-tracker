@@ -73,9 +73,6 @@ def send_email_otp(to_email):
         print(" Failed to send OTP:", e)
         return None
 
-# --- Run ---
-target_email = input("Enter the recipient Gmail address: ")
-send_email_otp(target_email)
 # ------------------ ROUTES ------------------
 
 @app.route('/')
