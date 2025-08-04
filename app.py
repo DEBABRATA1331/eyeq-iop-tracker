@@ -4,7 +4,6 @@ from psycopg2.extras import RealDictCursor
 import os
 import smtplib
 from email.mime.text import MIMEText
-import requests
 import random
 import uuid
 from datetime import datetime, timedelta
