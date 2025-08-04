@@ -1,7 +1,7 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import os
 import smtplib
 from email.mime.text import MIMEText
 import random
@@ -10,7 +10,9 @@ from datetime import datetime, timedelta
 import time  
 from email.message import EmailMessage
 from getpass import getpass
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
@@ -22,7 +24,8 @@ DATABASE_CONFIG = {
     'host': 'localhost',
     'port': '5432'
 }
-
+EMAIL_USER = os.getenv('EMAIL_USER')
+EMAIL_PASS = os.getenv('EMAIL_PASS')
 def get_db_connection():
     return psycopg2.connect(**DATABASE_CONFIG)
 
@@ -52,20 +55,20 @@ def init_db():
 # ------------------ EMAIL OTP SENDER ------------------
 def send_email_otp(to_email):
     otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
-    from_email = "crackerdeba@gmail.com"
+    EMAIL_USER = "crackerdeba@gmail.com"
     password = "uamv enrf buaz hsdd"  # Secure input
 
     # Compose email
     msg = EmailMessage()
     msg['Subject'] = 'Your OTP Code'
-    msg['From'] = from_email
+    msg['From'] = EMAIL_USER
     msg['To'] = to_email
     msg.set_content(f'Your OTP is: {otp}')
 
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
             smtp.starttls()
-            smtp.login(from_email, password)
+            smtp.login(EMAIL_USER, password)
             smtp.send_message(msg)
         print(f"OTP sent to {to_email}. OTP was: {otp}")
         return otp
@@ -102,7 +105,6 @@ def login():
 
     return render_template('login.html')
 
-
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
     if request.method == 'POST':
@@ -116,32 +118,26 @@ def verify_otp():
 
         if entered == correct:
             email = session['email']
-            user_id = str(uuid.uuid4())
 
-            try:
-                with get_db_connection() as con:
-                    with con.cursor() as cur:
-                        cur.execute("""
-                            INSERT INTO users (id, email)
-                            VALUES (%s, %s)
-                            ON CONFLICT (email) DO NOTHING;
-                        """, (user_id, email))
-                        con.commit()
-            except Exception as e:
-                print("DB error:", e)
-                flash("Database error occurred.", "danger")
-                return redirect(url_for('login'))
+            with get_db_connection() as con:
+                with con.cursor() as cur:
+                    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    user = cur.fetchone()
+                    user_id = user[0] if user else str(uuid.uuid4())
 
-            # Clear OTP session data
-            session.pop('otp', None)
-            session.pop('otp_expiry', None)
+                    cur.execute("""
+                        INSERT INTO users (id, email)
+                        VALUES (%s, %s)
+                        ON CONFLICT (email) DO NOTHING;
+                    """, (user_id, email))
+                    con.commit()
 
             session['authenticated'] = True
-            session['email'] = email
             flash("Login successful!", "success")
             return redirect(url_for('dashboard'))
-        else:
-            flash("Incorrect OTP. Please try again.", "danger")
+
+        flash("Incorrect OTP.", "danger")
+        return redirect(url_for('verify_otp'))
 
     return render_template('verify_otp.html')
 
