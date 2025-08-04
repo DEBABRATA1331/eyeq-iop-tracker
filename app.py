@@ -52,8 +52,8 @@ def init_db():
 # ------------------ EMAIL OTP SENDER ------------------
 def send_email_otp(to_email):
     otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
-    from_email = input("crackerdeba@gmail.com")
-    password = getpass("uamv enrf buaz hsdd")  # Secure input
+    from_email = "crackerdeba@gmail.com"
+    password = "uamv enrf buaz hsdd"  # Secure input
 
     # Compose email
     msg = EmailMessage()
