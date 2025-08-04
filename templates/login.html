@@ -98,15 +98,21 @@
 
   <h4 class="text-center mb-4 text-primary">🔐 Login to Eye-Q</h4>
   <form action="/login" method="POST">
-    <div class="mb-3">
-      <label for="email" class="form-label">Email address</label>
-      <input required type="email" class="form-control" name="email" id="email" placeholder="you@example.com">
-    </div>
-    <div class="d-grid">
-      <button type="submit" class="btn btn-primary">📨 Send OTP</button>
-    </div>
-  </form>
-</div>
+  <div class="mb-3">
+    <label for="email" class="form-label">Email address</label>
+    <input required type="email" class="form-control" name="email" id="email" placeholder="you@example.com">
+  </div>
+
+  <div class="mb-3">
+    <label for="phone" class="form-label">Phone Number</label>
+    <input required type="text" class="form-control" name="phone" id="phone" placeholder="9876543210">
+  </div>
+
+  <div class="d-grid">
+    <button type="submit" class="btn btn-primary">📨 Send OTP</button>
+  </div>
+</form>
+
 
 <!-- Scripts -->
 <script>
