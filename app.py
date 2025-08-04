@@ -4,10 +4,13 @@ from psycopg2.extras import RealDictCursor
 import os
 import smtplib
 from email.mime.text import MIMEText
+import requests
 import random
 import uuid
 from datetime import datetime, timedelta
-import time
+import time  
+from email.message import EmailMessage
+from getpass import getpass
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -48,22 +51,32 @@ def init_db():
             con.commit()
 
 # ------------------ EMAIL OTP SENDER ------------------
-def send_email_otp(email):
-    otp = str(random.randint(100000, 999999))
-    msg = MIMEText(f"Your Eye-Q OTP is: {otp}")
-    msg['Subject'] = "Eye-Q OTP Verification"
-    msg['From'] = "crackerdeba@gmail.com"
-    msg['To'] = email
+def send_email_otp(to_email):
+    otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
+    from_email = input("crackerdeba@gmail.com")
+    password = getpass("uamv enrf buaz hsdd")  # Secure input
+
+    # Compose email
+    msg = EmailMessage()
+    msg['Subject'] = 'Your OTP Code'
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg.set_content(f'Your OTP is: {otp}')
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login("crackerdeba@gmail.com", "@Truesilver8")  # Use Gmail App Password!
-            server.send_message(msg)
+        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+            smtp.starttls()
+            smtp.login(from_email, password)
+            smtp.send_message(msg)
+        print(f"OTP sent to {to_email}. OTP was: {otp}")
         return otp
     except Exception as e:
-        print("Email sending failed:", e)
+        print(" Failed to send OTP:", e)
         return None
 
+# --- Run ---
+target_email = input("Enter the recipient Gmail address: ")
+send_email_otp(target_email)
 # ------------------ ROUTES ------------------
 
 @app.route('/')
