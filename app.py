@@ -342,6 +342,7 @@ def latest_data():
 
 # ------------------ MAIN ------------------
 
+init_db()  # ✅ This will now run even when deployed via Gunicorn
+
 if __name__ == "__main__":
-    init_db()
     app.run(host='0.0.0.0', port=10000)
