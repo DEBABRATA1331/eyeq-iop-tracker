@@ -31,6 +31,10 @@ if DATABASE_URL:
     }
 else:
     raise ValueError("DATABASE_URL environment variable not found")
+# ------------------ DATABASE CONNECTION ------------------
+def get_db_connection():
+    return psycopg2.connect(**DATABASE_CONFIG)
+    
 
 # ------------------ DATABASE SETUP ------------------
 def init_db():
