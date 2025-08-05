@@ -16,18 +16,21 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# ------------------ DATABASE CONFIG ------------------
-DATABASE_CONFIG = {
-    'dbname': 'eyeq_db',
-    'user': 'eyeq_user',
-    'password': '@Truesilver8',
-    'host': 'localhost',
-    'port': '5432'
-}
-EMAIL_USER = os.getenv('EMAIL_USER')
-EMAIL_PASS = os.getenv('EMAIL_PASS')
-def get_db_connection():
-    return psycopg2.connect(**DATABASE_CONFIG)
+import urllib.parse as up
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    up.uses_netloc.append("postgres")
+    url = up.urlparse(DATABASE_URL)
+    DATABASE_CONFIG = {
+        'dbname': url.path[1:],
+        'user': url.username,
+        'password': url.password,
+        'host': url.hostname,
+        'port': url.port
+    }
+else:
+    raise ValueError("DATABASE_URL environment variable not found")
 
 # ------------------ DATABASE SETUP ------------------
 def init_db():
@@ -335,6 +338,6 @@ def latest_data():
 
 # ------------------ MAIN ------------------
 
-if __name__ == '__main__':
-    init_db()
-    app.run(debug=True)
+if __name__ == "__main__":
+     init_db()
+    app.run(host='0.0.0.0', port=10000)
