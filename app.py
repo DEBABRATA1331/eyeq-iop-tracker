@@ -44,7 +44,6 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS users (
                     id UUID PRIMARY KEY,
                     email TEXT UNIQUE NOT NULL,
-                    phone TEXT NOT NULL
                 );
             """)
             cur.execute("""
