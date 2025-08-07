@@ -40,12 +40,20 @@ def get_db_connection():
 def init_db():
     with get_db_connection() as con:
         with con.cursor() as cur:
+            # Enable UUID generation
+            cur.execute("""CREATE EXTENSION IF NOT EXISTS "uuid-ossp";""")
+
+            # USERS table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id UUID PRIMARY KEY,
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    name TEXT,
                     email TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+
+            # IOP_LOGS table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS iop_logs (
                     id SERIAL PRIMARY KEY,
@@ -53,10 +61,65 @@ def init_db():
                     iop REAL,
                     blue_light REAL,
                     screen_time REAL,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    device_id TEXT,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+
+            # REPORTS table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS reports (
+                    id SERIAL PRIMARY KEY,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                    report_date DATE DEFAULT CURRENT_DATE,
+                    iop_avg REAL,
+                    screen_time_avg REAL,
+                    blue_light_avg REAL,
+                    remarks TEXT
+                );
+            """)
+
+            # ALERTS table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id SERIAL PRIMARY KEY,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                    alert_type TEXT,
+                    message TEXT,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    resolved BOOLEAN DEFAULT FALSE
+                );
+            """)
+
+            # DEVICES table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS devices (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                    device_type TEXT,
+                    registered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # ACTIVITY_LOGS table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS activity_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                    action TEXT,
+                    ip_address TEXT,
+                    user_agent TEXT,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Indexes
+            cur.execute("""CREATE INDEX IF NOT EXISTS idx_user_email ON users(email);""")
+            cur.execute("""CREATE INDEX IF NOT EXISTS idx_logs_user ON iop_logs(user_id);""")
+            cur.execute("""CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);""")
+
             con.commit()
+
 
 # ------------------ EMAIL OTP SENDER ------------------
 def send_email_otp(to_email):
