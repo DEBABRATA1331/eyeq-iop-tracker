@@ -17,16 +17,18 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
 service_account_info = {
-    "type": "service_account",
-    "project_id": "eyeq-7e199",
-    "private_key_id": "YOUR_PRIVATE_KEY_ID",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
-    "client_email": "firebase-adminsdk-xxxxx@eyeq-7e199.iam.gserviceaccount.com",
-    "client_id": "YOUR_CLIENT_ID",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "YOUR_CERT_URL"
+   "type": "service_account",
+  "project_id": "eyeq-7e199",
+  "private_key_id": "1d8c08fd5bbd82147344216048a493b1fd8d0807",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC3XBPFGRVydr1w\nJhcfZa1iWe0iEHHnmsUJmhkR2mQxqFreOJzMUGpOIezbdleCjDgKgtgXORXeUMFS\njDp9kpuy0Gf52VwzxHkPcIjUqnZKXxSnxz2lvsBAL+EemTgnkexzMLQv6KS8anJe\nH/7LeA82ghmBLCyPh6VYDf96C1JfExzaA3DQ76GdtABKGJH+xPK5Gp4wM6wGwCF2\n4ygjFoDHV9zrN8TaQjCGTU/Mvp7aoswIGHSTaeS47REJtQE5v+AR2EoItD8/JoVH\niqiRznA9Y7OlNAkwxDN87iGTohj19uqHNX+rZslbh0KTfXHlvtVV0LuBFL5jWBu1\nIZW8DtzFAgMBAAECggEABdZuILPMPYEvRc9IpCzCCOQRCykX30ZLqKMZ0jowP257\nOiD2SQD0aXlmB5Ssc5EQRbFlvNOJ8TKD/SNOx2mwAFDnRoqXh2RlcErmaFLnAjYl\nu7O5sDmy+DguBCHfqk7YhtBRpEbVW9RNwNZm78ZqQZOByV2FK6qnZnbHn/SVUkaF\nEVIeeJ7hdvosESIQzbGJIteZzrpzrGlfDOViDFEOcgbbwktlDNrG7afC6c5P/MuA\ngyr66RDK1+yb2qWm2s1eVbqYG0Kc9Sp3Fa5SruSM2Ule1tkb7UlvlRj0pFhVhQZe\nzBKgQo3ph/wH7DbJvx4KFZeBObUBLtbyxxUQbCs/fwKBgQD5c4K8OwEISowgw+HZ\nLoZ8ioXF9VY8ExboorMmC9LlBNCAVmUs/52PtQj5s4S/IPJ1o/JVYRo2QcdSm01s\nGcKmcSL1270KOW6ytRGfGq173qyP4kUAWqtcvuMHHaxkD5dhlu643cCdOCyfwiya\nVYnGUgmrcfl+nvwBLdbswegGUwKBgQC8LGJs9vB9fab6awVYd54fRMKHlHX1F0xJ\nTF++J9CcyuVfBDWgOl1+Gn3fBCgMIJGQplfNmYhwO7VSjWJOdYpd/pPaivu4VN1l\nuZ+UU/LKzAImvZpXnknPQQOW9TImWOvLoSYJteMElQWe7Didaw6xMxCj0T2d5F3e\nSD8gVE99hwKBgEIs/J/G3209qZL/pCijiRX9AaQUg74IKmmoz/Hl7RrIfi+tu8WG\nQlxfYHQtxaeWq/u9dIpl6jg+lww5Gv70jojtNqMWmj3eIpnSI0ycHS3hUtIQ6tE/\nPHqsQTogCx24bSZ8jfQJEBIlVuFC9+Yxjw1Hsj0DTXbj4mLFsGC6yDz1AoGAJ30E\n9qrnkt4ggWKeD4+inhs2227bRiCqgKNHYEdIru6hLcxbWJGG9ySmD3v2z3yyL3HI\n8Ttr92mARp+m5qIh9FGtQ2pxIqCkiWlnxJ/NTqN7PBgD4Kk2Agk5sJ8p9AQrD2N0\n8Qq7ZkXDlTMrOlWyEpuNvWL2lEDNNg1hOe6Xc9cCgYEAntEGV8sKhqdFcJoT3w+z\n+R0YBogE2GuoLi6mfuq8GGWfnwbreOyXtCoQlBlvtDNEH6zFLXtq2qtKjoFjYRhL\nfnu+VcivZwBnN/kvwP4ujlDgM+chb3IbXbU/r6vDa+ytrFFQkTm9Azt6vgLGcO8P\ni4H0WDCz8ioOCVXXkjLR9aU=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@eyeq-7e199.iam.gserviceaccount.com",
+  "client_id": "112101320504053783181",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40eyeq-7e199.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+
 }
 
 # 🔹 Your Firebase Realtime Database URL
