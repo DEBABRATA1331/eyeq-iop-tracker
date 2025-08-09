@@ -239,20 +239,20 @@ def verify_otp():
         if entered == correct:
             email = session['email']
 
-            with get_db_connection() as con:
-                with con.cursor() as cur:
-                    cur.execute("SELECT id FROM users WHERE email = %s",
-                                (email, ))
-                    user = cur.fetchone()
-                    user_id = user[0] if user else str(uuid.uuid4())
+            # with get_db_connection() as con:
+                # with con.cursor() as cur:
+                    # cur.execute("SELECT id FROM users WHERE email = %s",
+                                # (email, ))
+                    # user = cur.fetchone()
+                    # user_id = user[0] if user else str(uuid.uuid4())
 
-                    cur.execute(
-                        """
-                        INSERT INTO users (id, email)
-                        VALUES (%s, %s)
-                        ON CONFLICT (email) DO NOTHING;
-                    """, (user_id, email))
-                    con.commit()
+                    # cur.execute(
+                        # """
+                        # INSERT INTO users (id, email)
+                        # VALUES (%s, %s)
+                        # ON CONFLICT (email) DO NOTHING;
+                    # """, (user_id, email))
+                    # con.commit()
 
             session['authenticated'] = True
             flash("Login successful!", "success")
