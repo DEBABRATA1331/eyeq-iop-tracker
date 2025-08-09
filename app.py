@@ -7,7 +7,7 @@ from email.mime.text import MIMEText
 import random
 import uuid
 from datetime import datetime, timedelta
-import time  
+import time
 from email.message import EmailMessage
 from getpass import getpass
 from dotenv import load_dotenv
@@ -31,94 +31,140 @@ if DATABASE_URL:
     }
 else:
     raise ValueError("DATABASE_URL environment variable not found")
+
+
 # ------------------ DATABASE CONNECTION ------------------
 def get_db_connection():
     return psycopg2.connect(**DATABASE_CONFIG)
-    
+
 
 # ------------------ DATABASE SETUP ------------------
 def init_db():
-    with get_db_connection() as con:
-        with con.cursor() as cur:
-            # Enable UUID generation
-            cur.execute("""CREATE EXTENSION IF NOT EXISTS "uuid-ossp";""")
+    try:
+        with get_db_connection() as con:
+            with con.cursor() as cur:
 
-            # USERS table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                    name TEXT,
-                    email TEXT UNIQUE NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+                # Try enabling uuid-ossp, else fallback to pgcrypto
+                try:
+                    cur.execute("""CREATE EXTENSION IF NOT EXISTS "uuid-ossp";""")
+                    print("✅ Extension 'uuid-ossp' ready.")
+                except Exception as e:
+                    print("⚠️  uuid-ossp not available, trying pgcrypto:", e)
+                    try:
+                        cur.execute("""CREATE EXTENSION IF NOT EXISTS pgcrypto;""")
+                        print("✅ Extension 'pgcrypto' ready.")
+                    except Exception as e2:
+                        print("❌ Could not enable any UUID extension:", e2)
 
-            # IOP_LOGS table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS iop_logs (
-                    id SERIAL PRIMARY KEY,
-                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                    iop REAL,
-                    blue_light REAL,
-                    screen_time REAL,
-                    device_id TEXT,
-                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+                # USERS table
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                            name TEXT,
+                            email TEXT UNIQUE NOT NULL,
+                            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    print("✅ users table ready.")
+                except Exception as e:
+                    print("❌ users table failed:", e)
 
-            # REPORTS table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS reports (
-                    id SERIAL PRIMARY KEY,
-                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                    report_date DATE DEFAULT CURRENT_DATE,
-                    iop_avg REAL,
-                    screen_time_avg REAL,
-                    blue_light_avg REAL,
-                    remarks TEXT
-                );
-            """)
+                # IOP_LOGS table
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS iop_logs (
+                            id SERIAL PRIMARY KEY,
+                            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                            iop REAL,
+                            blue_light REAL,
+                            screen_time REAL,
+                            device_id TEXT,
+                            timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    print("✅ iop_logs table ready.")
+                except Exception as e:
+                    print("❌ iop_logs table failed:", e)
 
-            # ALERTS table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS alerts (
-                    id SERIAL PRIMARY KEY,
-                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                    alert_type TEXT,
-                    message TEXT,
-                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    resolved BOOLEAN DEFAULT FALSE
-                );
-            """)
+                # REPORTS table
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS reports (
+                            id SERIAL PRIMARY KEY,
+                            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                            report_date DATE DEFAULT CURRENT_DATE,
+                            iop_avg REAL,
+                            screen_time_avg REAL,
+                            blue_light_avg REAL,
+                            remarks TEXT
+                        );
+                    """)
+                    print("✅ reports table ready.")
+                except Exception as e:
+                    print("❌ reports table failed:", e)
 
-            # DEVICES table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS devices (
-                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                    device_type TEXT,
-                    registered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+                # ALERTS table
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS alerts (
+                            id SERIAL PRIMARY KEY,
+                            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                            alert_type TEXT,
+                            message TEXT,
+                            timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                            resolved BOOLEAN DEFAULT FALSE
+                        );
+                    """)
+                    print("✅ alerts table ready.")
+                except Exception as e:
+                    print("❌ alerts table failed:", e)
 
-            # ACTIVITY_LOGS table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS activity_logs (
-                    id SERIAL PRIMARY KEY,
-                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                    action TEXT,
-                    ip_address TEXT,
-                    user_agent TEXT,
-                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+                # DEVICES table
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS devices (
+                            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                            device_type TEXT,
+                            registered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    print("✅ devices table ready.")
+                except Exception as e:
+                    print("❌ devices table failed:", e)
 
-            # Indexes
-            cur.execute("""CREATE INDEX IF NOT EXISTS idx_user_email ON users(email);""")
-            cur.execute("""CREATE INDEX IF NOT EXISTS idx_logs_user ON iop_logs(user_id);""")
-            cur.execute("""CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);""")
+                # ACTIVITY_LOGS table
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS activity_logs (
+                            id SERIAL PRIMARY KEY,
+                            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                            action TEXT,
+                            ip_address TEXT,
+                            user_agent TEXT,
+                            timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    print("✅ activity_logs table ready.")
+                except Exception as e:
+                    print("❌ activity_logs table failed:", e)
 
-            con.commit()
+                # Indexes
+                try:
+                    cur.execute("""CREATE INDEX IF NOT EXISTS idx_user_email ON users(email);""")
+                    cur.execute("""CREATE INDEX IF NOT EXISTS idx_logs_user ON iop_logs(user_id);""")
+                    cur.execute("""CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);""")
+                    print("✅ Indexes ready.")
+                except Exception as e:
+                    print("❌ Index creation failed:", e)
+
+                con.commit()
+                print("🎯 Database initialization complete.")
+
+    except Exception as outer_e:
+        print("❌ init_db() failed completely:", outer_e)
+
 
 
 # ------------------ EMAIL OTP SENDER ------------------
@@ -145,11 +191,14 @@ def send_email_otp(to_email):
         print(" Failed to send OTP:", e)
         return None
 
+
 # ------------------ ROUTES ------------------
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -166,13 +215,15 @@ def login():
             return redirect(url_for('login'))
 
         session['otp'] = otp
-        session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).timestamp()
+        session['otp_expiry'] = (datetime.now() +
+                                 timedelta(minutes=5)).timestamp()
         session['email'] = email
 
         flash("OTP sent to your email.", "info")
         return redirect(url_for('verify_otp'))
 
     return render_template('login.html')
+
 
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
@@ -190,11 +241,13 @@ def verify_otp():
 
             with get_db_connection() as con:
                 with con.cursor() as cur:
-                    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    cur.execute("SELECT id FROM users WHERE email = %s",
+                                (email, ))
                     user = cur.fetchone()
                     user_id = user[0] if user else str(uuid.uuid4())
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO users (id, email)
                         VALUES (%s, %s)
                         ON CONFLICT (email) DO NOTHING;
@@ -220,11 +273,13 @@ def resend_otp():
     new_otp = send_email_otp(session['email'])
     if new_otp:
         session['otp'] = new_otp
-        session['otp_expiry'] = (datetime.now() + timedelta(minutes=5)).timestamp()
+        session['otp_expiry'] = (datetime.now() +
+                                 timedelta(minutes=5)).timestamp()
         flash("OTP resent to your email.", "info")
     else:
         flash("Failed to resend OTP.", "danger")
     return redirect(url_for('verify_otp'))
+
 
 @app.route('/dashboard')
 def dashboard():
@@ -234,19 +289,20 @@ def dashboard():
     email = session['email']
     with get_db_connection() as con:
         with con.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id FROM users WHERE email = %s", (email, ))
             user = cur.fetchone()
             if not user:
                 flash("User not found.", "danger")
                 return redirect(url_for('login'))
 
             user_id = user['id']
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT iop, blue_light, screen_time, timestamp
                 FROM iop_logs
                 WHERE user_id=%s
                 ORDER BY timestamp DESC LIMIT 10
-            """, (user_id,))
+            """, (user_id, ))
             rows = cur.fetchall()
 
     iop_values = [row['iop'] for row in rows][::-1]
@@ -267,9 +323,19 @@ def dashboard():
     return render_template("dashboard.html",
                            data=latest,
                            alerts=alerts,
-                           iop={"values": iop_values, "timestamps": timestamps},
-                           blue_light={"values": blue_values, "timestamps": timestamps},
-                           screen_time={"values": screen_values, "timestamps": timestamps})
+                           iop={
+                               "values": iop_values,
+                               "timestamps": timestamps
+                           },
+                           blue_light={
+                               "values": blue_values,
+                               "timestamps": timestamps
+                           },
+                           screen_time={
+                               "values": screen_values,
+                               "timestamps": timestamps
+                           })
+
 
 @app.route('/history')
 def history():
@@ -281,22 +347,25 @@ def history():
     end = request.args.get('end')
 
     try:
-        start_date = datetime.strptime(start, "%Y-%m-%d") if start else datetime.now() - timedelta(days=7)
-        end_date = datetime.strptime(end, "%Y-%m-%d") if end else datetime.now()
+        start_date = datetime.strptime(
+            start, "%Y-%m-%d") if start else datetime.now() - timedelta(days=7)
+        end_date = datetime.strptime(end,
+                                     "%Y-%m-%d") if end else datetime.now()
     except:
         start_date = datetime.now() - timedelta(days=7)
         end_date = datetime.now()
 
     with get_db_connection() as con:
         with con.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id FROM users WHERE email = %s", (email, ))
             user = cur.fetchone()
             if not user:
                 flash("User not found.", "danger")
                 return redirect(url_for('login'))
 
             user_id = user['id']
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT iop, blue_light, screen_time, timestamp
                 FROM iop_logs
                 WHERE user_id = %s AND timestamp BETWEEN %s AND %s
@@ -304,9 +373,11 @@ def history():
             """, (user_id, start_date, end_date))
             logs = cur.fetchall()
 
-    return render_template("history.html", logs=logs,
+    return render_template("history.html",
+                           logs=logs,
                            start=start_date.strftime("%Y-%m-%d"),
                            end=end_date.strftime("%Y-%m-%d"))
+
 
 @app.route('/report')
 def report():
@@ -316,19 +387,20 @@ def report():
     email = session['email']
     with get_db_connection() as con:
         with con.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id FROM users WHERE email = %s", (email, ))
             user = cur.fetchone()
             if not user:
                 flash("User not found.", "danger")
                 return redirect(url_for('login'))
 
             user_id = user['id']
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT iop, blue_light, screen_time, timestamp
                 FROM iop_logs
                 WHERE user_id=%s
                 ORDER BY timestamp DESC LIMIT 10
-            """, (user_id,))
+            """, (user_id, ))
             rows = cur.fetchall()
 
     iop_values = [row['iop'] for row in rows][::-1]
@@ -347,13 +419,18 @@ def report():
     return render_template("report.html",
                            data=latest,
                            alerts=alerts,
-                           iop={"values": iop_values, "timestamps": timestamps})
+                           iop={
+                               "values": iop_values,
+                               "timestamps": timestamps
+                           })
+
 
 @app.route('/hospitals')
 def hospitals():
     if not session.get('authenticated'):
         return redirect(url_for('login'))
     return render_template("hospitals.html")
+
 
 @app.route('/send_data', methods=['POST'])
 def send_data():
@@ -364,17 +441,24 @@ def send_data():
     screen_time = data.get('screen_time')
 
     if not email or iop is None:
-        return jsonify({'status': 'error', 'msg': 'Missing required data'}), 400
+        return jsonify({
+            'status': 'error',
+            'msg': 'Missing required data'
+        }), 400
 
     with get_db_connection() as con:
         with con.cursor() as cur:
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id FROM users WHERE email = %s", (email, ))
             user = cur.fetchone()
             if not user:
-                return jsonify({'status': 'error', 'msg': 'User not found'}), 404
+                return jsonify({
+                    'status': 'error',
+                    'msg': 'User not found'
+                }), 404
 
             user_id = user[0]
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO iop_logs (user_id, iop, blue_light, screen_time)
                 VALUES (%s, %s, %s, %s)
             """, (user_id, iop, blue_light, screen_time))
@@ -382,25 +466,28 @@ def send_data():
 
     return jsonify({'status': 'success', 'msg': 'Data stored'})
 
+
 @app.route('/api/latest_data')
 def latest_data():
     email = session.get('email')
     with get_db_connection() as con:
         with con.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id FROM users WHERE email = %s", (email, ))
             user = cur.fetchone()
             if not user:
                 return jsonify({})
 
             user_id = user['id']
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT iop, blue_light, screen_time, timestamp
                 FROM iop_logs
                 WHERE user_id=%s
                 ORDER BY timestamp DESC LIMIT 1
-            """, (user_id,))
+            """, (user_id, ))
             row = cur.fetchone()
     return jsonify(row or {})
+
 
 # ------------------ MAIN ------------------
 
