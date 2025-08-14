@@ -251,9 +251,27 @@ def dashboard():
     user_id = user["id"]
     rows = get_latest_logs(user_id, limit=10)
 
-    iop_values = [r.get("iop") for r in rows]
-    blue_values = [r.get("blue_light") for r in rows]
-    screen_values = [r.get("screen_time") for r in rows]
+    # ✅ Use dummy data if no sensor data yet
+    if not rows:
+        rows = [
+            {
+                "iop": 15,
+                "blue_light": 20,
+                "screen_time": 3,
+                "timestamp_iso": datetime.now().isoformat()
+            },
+            {
+                "iop": 16,
+                "blue_light": 22,
+                "screen_time": 4,
+                "timestamp_iso": datetime.now().isoformat()
+            }
+        ]
+
+    iop_values = [r.get("iop", 0) for r in rows]
+    blue_values = [r.get("blue_light", 0) for r in rows]
+    screen_values = [r.get("screen_time", 0) for r in rows]
+
     timestamps = []
     for r in rows:
         t_iso = r.get("timestamp_iso")
@@ -285,6 +303,7 @@ def dashboard():
         blue_light={"values": blue_values, "timestamps": timestamps},
         screen_time={"values": screen_values, "timestamps": timestamps},
     )
+
 
 @app.route("/history")
 def history():
