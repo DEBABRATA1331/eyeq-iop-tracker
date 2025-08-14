@@ -1,41 +1,63 @@
+# app.py (env-only, no secrets in code)
+
 import os
+import json
 import uuid
 import random
+import smtplib
 from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from email.message import EmailMessage
-import smtplib
 
 # Firebase
 import firebase_admin
 from firebase_admin import credentials, db
 
-# Load env vars from .env
+# ------------------ ENV & CONFIG ------------------
 load_dotenv()
 
-# ------------------ CONFIG ------------------
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
+SECRET_KEY = os.getenv("SECRET_KEY")
 EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Gmail App Password recommended
 FIREBASE_DB_URL = os.getenv("FIREBASE_DB_URL")
-SERVICE_ACCOUNT_PATH = os.getenv("SERVICE_ACCOUNT_PATH")  # path to serviceAccount.json
+FIREBASE_CREDENTIALS = os.getenv("FIREBASE_CREDENTIALS")  # JSON string (preferred)
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  # fallback path
 
-if not all([EMAIL_USER, EMAIL_PASSWORD, FIREBASE_DB_URL, SERVICE_ACCOUNT_PATH]):
-    raise ValueError("Missing one or more required environment variables.")
+missing = [k for k, v in {
+    "SECRET_KEY": SECRET_KEY,
+    "EMAIL_USER": EMAIL_USER,
+    "EMAIL_PASSWORD": EMAIL_PASSWORD,
+    "FIREBASE_DB_URL": FIREBASE_DB_URL
+}.items() if not v]
+if missing:
+    raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
-# ------------------ APP SETUP ------------------
+# ------------------ FLASK APP ------------------
 app = Flask(__name__)
-app.secret_key = SECRET_KEY
+app.secret_key = SECRET_KEY  # stable key so sessions survive restarts
 
-# Firebase init
-cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
-firebase_admin.initialize_app(cred, {
-    'databaseURL': FIREBASE_DB_URL
-})
+# ------------------ FIREBASE INIT ------------------
+if not firebase_admin._apps:
+    if FIREBASE_CREDENTIALS:
+        try:
+            cred_obj = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
+        except json.JSONDecodeError as e:
+            raise ValueError("FIREBASE_CREDENTIALS is not valid JSON. Paste the full service-account JSON string.") from e
+        firebase_admin.initialize_app(cred_obj, {"databaseURL": FIREBASE_DB_URL})
+    elif GOOGLE_APPLICATION_CREDENTIALS and os.path.exists(GOOGLE_APPLICATION_CREDENTIALS):
+        cred_obj = credentials.Certificate(GOOGLE_APPLICATION_CREDENTIALS)
+        firebase_admin.initialize_app(cred_obj, {"databaseURL": FIREBASE_DB_URL})
+    else:
+        raise ValueError(
+            "Provide Firebase credentials via FIREBASE_CREDENTIALS (JSON string) "
+            "or GOOGLE_APPLICATION_CREDENTIALS (file path)."
+        )
 
-# ------------------ HELPERS ------------------
+# ------------------ DB HELPERS ------------------
 def email_to_key(email: str) -> str:
+    # For users_by_email mapping keys
     return email.replace('.', ',').lower()
 
 def get_users_ref():
@@ -47,19 +69,32 @@ def get_users_by_email_ref():
 def get_iop_logs_ref(uid: str):
     return db.reference(f"iop_logs/{uid}")
 
-# ------------------ USER FUNCTIONS ------------------
+def get_reports_ref(uid: str):
+    return db.reference(f"reports/{uid}")
+
+def get_alerts_ref(uid: str):
+    return db.reference(f"alerts/{uid}")
+
+def get_devices_ref(uid: str):
+    return db.reference(f"devices/{uid}")
+
+def get_activity_logs_ref(uid: str):
+    return db.reference(f"activity_logs/{uid}")
+
+# ------------------ USERS ------------------
 def create_user_if_not_exists(email: str, name: str = None) -> str:
     email_key = email_to_key(email)
     map_ref = get_users_by_email_ref().child(email_key)
     uid = map_ref.get()
     if uid:
         return uid
+
     uid = str(uuid.uuid4())
     user_obj = {
         "id": uid,
         "email": email,
         "name": name or "",
-        "created_at": datetime.utcnow().isoformat() + "Z"
+        "created_at": datetime.utcnow().isoformat() + "Z",
     }
     get_users_ref().child(uid).set(user_obj)
     map_ref.set(uid)
@@ -68,11 +103,14 @@ def create_user_if_not_exists(email: str, name: str = None) -> str:
 def get_user_by_email(email: str):
     email_key = email_to_key(email)
     uid = get_users_by_email_ref().child(email_key).get()
-    return get_users_ref().child(uid).get() if uid else None
+    if not uid:
+        return None
+    return get_users_ref().child(uid).get()
 
-# ------------------ IOP LOG FUNCTIONS ------------------
+# ------------------ IOP LOGS ------------------
 def insert_iop_log(uid: str, iop: float, blue_light: float = None, screen_time: float = None, device_id: str = None):
     now = datetime.utcnow()
+    epoch = int(now.timestamp())
     log_id = str(uuid.uuid4())
     log_obj = {
         "id": log_id,
@@ -82,15 +120,27 @@ def insert_iop_log(uid: str, iop: float, blue_light: float = None, screen_time: 
         "screen_time": float(screen_time) if screen_time is not None else None,
         "device_id": device_id or "",
         "timestamp_iso": now.isoformat() + "Z",
-        "timestamp_epoch": int(now.timestamp())
+        "timestamp_epoch": epoch,
     }
     get_iop_logs_ref(uid).child(log_id).set(log_obj)
     return log_obj
 
 def get_latest_logs(uid: str, limit=10):
-    snapshot = get_iop_logs_ref(uid).order_by_child("timestamp_epoch").limit_to_last(limit).get()
-    logs = list(snapshot.values()) if snapshot else []
+    ref = get_iop_logs_ref(uid)
+    snapshot = ref.order_by_child("timestamp_epoch").limit_to_last(limit).get()
+    if not snapshot:
+        return []
+    logs = list(snapshot.values())
     logs.sort(key=lambda r: r.get("timestamp_epoch", 0))
+    return logs
+
+def get_logs_between(uid: str, start_epoch: int, end_epoch: int):
+    ref = get_iop_logs_ref(uid)
+    snapshot = ref.order_by_child("timestamp_epoch").start_at(start_epoch).end_at(end_epoch).get()
+    if not snapshot:
+        return []
+    logs = list(snapshot.values())
+    logs.sort(key=lambda r: r.get("timestamp_epoch", 0), reverse=True)
     return logs
 
 def get_latest_log(uid: str):
@@ -100,13 +150,15 @@ def get_latest_log(uid: str):
 # ------------------ EMAIL OTP ------------------
 def send_email_otp(to_email):
     otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
+
     msg = EmailMessage()
-    msg['Subject'] = 'Your OTP Code'
-    msg['From'] = EMAIL_USER
-    msg['To'] = to_email
-    msg.set_content(f'Your OTP is: {otp}')
+    msg["Subject"] = "Your OTP Code"
+    msg["From"] = EMAIL_USER
+    msg["To"] = to_email
+    msg.set_content(f"Your OTP is: {otp}")
+
     try:
-        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.starttls()
             smtp.login(EMAIL_USER, EMAIL_PASSWORD)
             smtp.send_message(msg)
@@ -117,86 +169,239 @@ def send_email_otp(to_email):
         return None
 
 # ------------------ ROUTES ------------------
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        email = request.form['email'].strip().lower()
+    if request.method == "POST":
+        email = request.form["email"].strip().lower()
         if not email:
             flash("Email is required!", "danger")
-            return redirect(url_for('login'))
+            return redirect(url_for("login"))
+
         otp = send_email_otp(email)
         if not otp:
             flash("Failed to send OTP. Try again later.", "danger")
-            return redirect(url_for('login'))
-        session['otp'] = otp
-        session['otp_expiry'] = (datetime.utcnow() + timedelta(minutes=5)).timestamp()
-        session['email'] = email
+            return redirect(url_for("login"))
+
+        session["otp"] = otp
+        session["otp_expiry"] = (datetime.utcnow() + timedelta(minutes=5)).timestamp()
+        session["email"] = email
+
         create_user_if_not_exists(email)
+
         flash("OTP sent to your email.", "info")
-        return redirect(url_for('verify_otp'))
-    return render_template('login.html')
+        return redirect(url_for("verify_otp"))
+    return render_template("login.html")
 
-@app.route('/verify_otp', methods=['GET', 'POST'])
+@app.route("/verify_otp", methods=["GET", "POST"])
 def verify_otp():
-    if request.method == 'POST':
-        entered = request.form['otp'].strip()
-        if datetime.utcnow().timestamp() > session.get('otp_expiry', 0):
+    if request.method == "POST":
+        entered = request.form["otp"].strip()
+        correct = session.get("otp")
+        expiry = session.get("otp_expiry")
+
+        if not expiry or datetime.utcnow().timestamp() > expiry:
             flash("OTP expired. Please login again.", "warning")
-            return redirect(url_for('login'))
-        if entered == session.get('otp'):
-            user = get_user_by_email(session['email']) or create_user_if_not_exists(session['email'])
-            session['authenticated'] = True
+            return redirect(url_for("login"))
+
+        if entered == correct:
+            email = session["email"]
+            user = get_user_by_email(email)
+            if not user:
+                uid = create_user_if_not_exists(email)
+                user = get_users_ref().child(uid).get()
+
+            session["authenticated"] = True
             flash("Login successful!", "success")
-            return redirect(url_for('dashboard'))
+            return redirect(url_for("dashboard"))
+
         flash("Incorrect OTP.", "danger")
-        return redirect(url_for('verify_otp'))
-    return render_template('verify_otp.html')
+        return redirect(url_for("verify_otp"))
+    return render_template("verify_otp.html")
 
-@app.route('/dashboard')
+@app.route("/resend_otp")
+def resend_otp():
+    if not session.get("email"):
+        flash("Session expired. Please login again.", "warning")
+        return redirect(url_for("login"))
+
+    new_otp = send_email_otp(session["email"])
+    if new_otp:
+        session["otp"] = new_otp
+        session["otp_expiry"] = (datetime.utcnow() + timedelta(minutes=5)).timestamp()
+        flash("OTP resent to your email.", "info")
+    else:
+        flash("Failed to resend OTP.", "danger")
+    return redirect(url_for("verify_otp"))
+
+@app.route("/dashboard")
 def dashboard():
-    if not session.get('authenticated'):
-        return redirect(url_for('login'))
-    user = get_user_by_email(session['email'])
-    rows = get_latest_logs(user['id'], limit=10)
-    latest = rows[-1] if rows else None
-    alerts = []
-    if latest:
-        if latest.get('iop', 0) > 21:
-            alerts.append("High IOP detected! Consult a doctor.")
-        if latest.get('blue_light', 0) > 25:
-            alerts.append("High blue light exposure. Take a break!")
-        if latest.get('screen_time', 0) > 5:
-            alerts.append("Reduce screen time to prevent eye strain.")
-    timestamps = [datetime.fromisoformat(r.get('timestamp_iso').replace("Z", "")).strftime('%H:%M') for r in rows]
-    return render_template("dashboard.html",
-                           data=latest,
-                           alerts=alerts,
-                           iop={"values": [r.get('iop') for r in rows], "timestamps": timestamps},
-                           blue_light={"values": [r.get('blue_light') for r in rows], "timestamps": timestamps},
-                           screen_time={"values": [r.get('screen_time') for r in rows], "timestamps": timestamps})
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
 
-@app.route('/send_data', methods=['POST'])
-def send_data():
-    data = request.get_json()
-    email = data.get('email')
-    if not email or data.get('iop') is None:
-        return jsonify({'status': 'error', 'msg': 'Missing required data'}), 400
+    email = session["email"]
     user = get_user_by_email(email)
     if not user:
-        return jsonify({'status': 'error', 'msg': 'User not found'}), 404
-    inserted = insert_iop_log(user['id'], data['iop'], data.get('blue_light'), data.get('screen_time'), data.get('device_id'))
-    return jsonify({'status': 'success', 'msg': 'Data stored', 'data': inserted})
+        flash("User not found.", "danger")
+        return redirect(url_for("login"))
 
-@app.route('/api/latest_data')
+    user_id = user["id"]
+    rows = get_latest_logs(user_id, limit=10)
+
+    iop_values = [r.get("iop") for r in rows]
+    blue_values = [r.get("blue_light") for r in rows]
+    screen_values = [r.get("screen_time") for r in rows]
+    timestamps = []
+    for r in rows:
+        t_iso = r.get("timestamp_iso")
+        if t_iso:
+            try:
+                ts = datetime.fromisoformat(t_iso.replace("Z", ""))
+                timestamps.append(ts.strftime("%H:%M"))
+            except Exception:
+                timestamps.append("")
+        else:
+            timestamps.append("")
+
+    latest = rows[-1] if rows else None
+
+    alerts = []
+    if latest:
+        if latest.get("iop") is not None and latest["iop"] > 21:
+            alerts.append("High IOP detected! Consult a doctor.")
+        if latest.get("blue_light") is not None and latest["blue_light"] > 25:
+            alerts.append("High blue light exposure. Take a break!")
+        if latest.get("screen_time") is not None and latest["screen_time"] > 5:
+            alerts.append("Reduce screen time to prevent eye strain.")
+
+    return render_template(
+        "dashboard.html",
+        data=latest,
+        alerts=alerts,
+        iop={"values": iop_values, "timestamps": timestamps},
+        blue_light={"values": blue_values, "timestamps": timestamps},
+        screen_time={"values": screen_values, "timestamps": timestamps},
+    )
+
+@app.route("/history")
+def history():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+
+    email = session["email"]
+    start = request.args.get("start")
+    end = request.args.get("end")
+
+    try:
+        start_date = datetime.strptime(start, "%Y-%m-%d") if start else datetime.utcnow() - timedelta(days=7)
+        end_date = datetime.strptime(end, "%Y-%m-%d") if end else datetime.utcnow()
+    except Exception:
+        start_date = datetime.utcnow() - timedelta(days=7)
+        end_date = datetime.utcnow()
+
+    user = get_user_by_email(email)
+    if not user:
+        flash("User not found.", "danger")
+        return redirect(url_for("login"))
+
+    user_id = user["id"]
+    start_epoch = int(start_date.timestamp())
+    end_epoch = int(end_date.timestamp())
+
+    logs = get_logs_between(user_id, start_epoch, end_epoch)
+
+    return render_template(
+        "history.html",
+        logs=logs,
+        start=start_date.strftime("%Y-%m-%d"),
+        end=end_date.strftime("%Y-%m-%d"),
+    )
+
+@app.route("/report")
+def report():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+
+    email = session["email"]
+    user = get_user_by_email(email)
+    if not user:
+        flash("User not found.", "danger")
+        return redirect(url_for("login"))
+
+    user_id = user["id"]
+    rows = get_latest_logs(user_id, limit=10)
+    iop_values = [r.get("iop") for r in rows]
+    timestamps = []
+    for r in rows:
+        t_iso = r.get("timestamp_iso")
+        if t_iso:
+            try:
+                ts = datetime.fromisoformat(t_iso.replace("Z", ""))
+                timestamps.append(ts.strftime("%H:%M"))
+            except Exception:
+                timestamps.append("")
+        else:
+            timestamps.append("")
+
+    latest = rows[-1] if rows else None
+
+    alerts = []
+    if latest:
+        if latest.get("iop") is not None and latest["iop"] > 21:
+            alerts.append("High IOP detected! Consult a doctor.")
+        if latest.get("blue_light") is not None and latest["blue_light"] > 25:
+            alerts.append("High blue light exposure. Take a break!")
+        if latest.get("screen_time") is not None and latest["screen_time"] > 5:
+            alerts.append("Reduce screen time to prevent eye strain.")
+
+    return render_template(
+        "report.html",
+        data=latest,
+        alerts=alerts,
+        iop={"values": iop_values, "timestamps": timestamps},
+    )
+
+@app.route("/hospitals")
+def hospitals():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+    return render_template("hospitals.html")
+
+@app.route("/send_data", methods=["POST"])
+def send_data():
+    data = request.get_json()
+    email = data.get("email")
+    iop = data.get("iop")
+    blue_light = data.get("blue_light")
+    screen_time = data.get("screen_time")
+    device_id = data.get("device_id")
+
+    if not email or iop is None:
+        return jsonify({"status": "error", "msg": "Missing required data"}), 400
+
+    user = get_user_by_email(email)
+    if not user:
+        return jsonify({"status": "error", "msg": "User not found"}), 404
+
+    user_id = user["id"]
+    inserted = insert_iop_log(user_id, iop, blue_light, screen_time, device_id)
+    return jsonify({"status": "success", "msg": "Data stored", "data": inserted})
+
+@app.route("/api/latest_data")
 def latest_data():
-    email = session.get('email')
-    user = get_user_by_email(email) if email else None
-    return jsonify(get_latest_log(user['id']) if user else {})
+    email = session.get("email")
+    if not email:
+        return jsonify({})
+    user = get_user_by_email(email)
+    if not user:
+        return jsonify({})
+    user_id = user["id"]
+    row = get_latest_log(user_id)
+    return jsonify(row or {})
 
 # ------------------ MAIN ------------------
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
