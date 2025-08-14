@@ -118,20 +118,20 @@
   const chartData = {
     iop: {
       label: 'IOP (mmHg)',
-      data: {{ iop.values|tojson }},
-      labels: {{ iop.timestamps|tojson }},
+      data: {{ iop["values"]|default([], true)|tojson }},
+      labels: {{ iop["timestamps"]|default([], true)|tojson }},
       color: 'rgba(33, 150, 243, 1)'
     },
     blue: {
       label: 'Blue Light',
-      data: {{ blue_light.values|tojson }},
-      labels: {{ blue_light.timestamps|tojson }},
+      data: {{ blue_light["values"]|default([], true)|tojson }},
+      labels: {{ blue_light["timestamps"]|default([], true)|tojson }},
       color: 'rgba(76, 175, 80, 1)'
     },
     screen: {
       label: 'Screen Time (hrs)',
-      data: {{ screen_time.values|tojson }},
-      labels: {{ screen_time.timestamps|tojson }},
+      data: {{ screen_time["values"]|default([], true)|tojson }},
+      labels: {{ screen_time["timestamps"]|default([], true)|tojson }},
       color: 'rgba(255, 152, 0, 1)'
     }
   };
