@@ -251,7 +251,7 @@ def dashboard():
     user_id = user["id"]
     rows = get_latest_logs(user_id, limit=10)
 
-    # ✅ Use dummy data if no sensor data yet
+    # Use dummy data if no sensor data yet
     if not rows:
         rows = [
             {
@@ -273,8 +273,7 @@ def dashboard():
     iop_values = [r.get("iop", 0) for r in rows]
     blue_values = [r.get("blue_light", 0) for r in rows]
     screen_values = [r.get("screen_time", 0) for r in rows]
-    blink_values = [r.get("blink_rate", 0) for r in rows]  # NEW
-
+    blink_values = [r.get("blink_rate", 0) for r in rows]
 
     timestamps = []
     for r in rows:
@@ -291,26 +290,25 @@ def dashboard():
     latest = rows[-1] if rows else None
 
     alerts = []
-if latest:
-    if latest.get("iop") is not None and latest["iop"] > 21:
-        alerts.append("High IOP detected! Consult a doctor.")
-    if latest.get("blue_light") is not None and latest["blue_light"] > 25:
-        alerts.append("High blue light exposure. Take a break!")
-    if latest.get("screen_time") is not None and latest["screen_time"] > 5:
-        alerts.append("Reduce screen time to prevent eye strain.")
-    if latest.get("blink_rate") is not None and latest["blink_rate"] < 15:
-        alerts.append("Low blink rate detected — you might be straining your eyes.")
-
+    if latest:
+        if latest.get("iop") is not None and latest["iop"] > 21:
+            alerts.append("High IOP detected! Consult a doctor.")
+        if latest.get("blue_light") is not None and latest["blue_light"] > 25:
+            alerts.append("High blue light exposure. Take a break!")
+        if latest.get("screen_time") is not None and latest["screen_time"] > 5:
+            alerts.append("Reduce screen time to prevent eye strain.")
+        if latest.get("blink_rate") is not None and latest["blink_rate"] < 15:
+            alerts.append("Low blink rate detected — you might be straining your eyes.")
 
     return render_template(
-    "dashboard.html",
-    data=latest,
-    alerts=alerts,
-    iop={"values": iop_values, "timestamps": timestamps},
-    blue_light={"values": blue_values, "timestamps": timestamps},
-    screen_time={"values": screen_values, "timestamps": timestamps},
-    blink_rate={"values": blink_values, "timestamps": timestamps}
-)
+        "dashboard.html",
+        data=latest,
+        alerts=alerts,
+        iop={"values": iop_values, "timestamps": timestamps},
+        blue_light={"values": blue_values, "timestamps": timestamps},
+        screen_time={"values": screen_values, "timestamps": timestamps},
+        blink_rate={"values": blink_values, "timestamps": timestamps}
+    )
 
 
 
