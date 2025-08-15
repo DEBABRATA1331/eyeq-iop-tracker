@@ -258,12 +258,14 @@ def dashboard():
                 "iop": 15,
                 "blue_light": 20,
                 "screen_time": 3,
+                "blink_rate": 12,
                 "timestamp_iso": datetime.now().isoformat()
             },
             {
                 "iop": 16,
                 "blue_light": 22,
                 "screen_time": 4,
+                "blink_rate": 15,
                 "timestamp_iso": datetime.now().isoformat()
             }
         ]
@@ -271,6 +273,8 @@ def dashboard():
     iop_values = [r.get("iop", 0) for r in rows]
     blue_values = [r.get("blue_light", 0) for r in rows]
     screen_values = [r.get("screen_time", 0) for r in rows]
+    blink_values = [r.get("blink_rate", 0) for r in rows]  # NEW
+
 
     timestamps = []
     for r in rows:
@@ -287,22 +291,27 @@ def dashboard():
     latest = rows[-1] if rows else None
 
     alerts = []
-    if latest:
-        if latest.get("iop") is not None and latest["iop"] > 21:
-            alerts.append("High IOP detected! Consult a doctor.")
-        if latest.get("blue_light") is not None and latest["blue_light"] > 25:
-            alerts.append("High blue light exposure. Take a break!")
-        if latest.get("screen_time") is not None and latest["screen_time"] > 5:
-            alerts.append("Reduce screen time to prevent eye strain.")
+if latest:
+    if latest.get("iop") is not None and latest["iop"] > 21:
+        alerts.append("High IOP detected! Consult a doctor.")
+    if latest.get("blue_light") is not None and latest["blue_light"] > 25:
+        alerts.append("High blue light exposure. Take a break!")
+    if latest.get("screen_time") is not None and latest["screen_time"] > 5:
+        alerts.append("Reduce screen time to prevent eye strain.")
+    if latest.get("blink_rate") is not None and latest["blink_rate"] < 15:
+        alerts.append("Low blink rate detected — you might be straining your eyes.")
+
 
     return render_template(
-        "dashboard.html",
-        data=latest,
-        alerts=alerts,
-        iop={"values": iop_values, "timestamps": timestamps},
-        blue_light={"values": blue_values, "timestamps": timestamps},
-        screen_time={"values": screen_values, "timestamps": timestamps},
-    )
+    "dashboard.html",
+    data=latest,
+    alerts=alerts,
+    iop={"values": iop_values, "timestamps": timestamps},
+    blue_light={"values": blue_values, "timestamps": timestamps},
+    screen_time={"values": screen_values, "timestamps": timestamps},
+    blink_rate={"values": blink_values, "timestamps": timestamps}
+)
+
 
 
 @app.route("/history")
@@ -344,43 +353,87 @@ def report():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
-    email = session["email"]
+    email = session.get("email")
     user = get_user_by_email(email)
     if not user:
         flash("User not found.", "danger")
         return redirect(url_for("login"))
 
     user_id = user["id"]
-    rows = get_latest_logs(user_id, limit=10)
-    iop_values = [r.get("iop") for r in rows]
+    rows = get_latest_logs(user_id, limit=10)  # returns list sorted oldest->newest
+
+    # Prepare arrays (use None so the template can show 'N/A'; JS charts like numbers or null)
+    iop_values = []
+    blue_values = []
+    screen_values = []
+    blink_values = []
     timestamps = []
+
     for r in rows:
+        # numeric values or None
+        iop_values.append(r.get("iop") if r.get("iop") is not None else None)
+        blue_values.append(r.get("blue_light") if r.get("blue_light") is not None else None)
+        screen_values.append(r.get("screen_time") if r.get("screen_time") is not None else None)
+        blink_values.append(r.get("blink_rate") if r.get("blink_rate") is not None else None)
+
+        # timestamp: try ISO first, fallback to epoch, else empty string
         t_iso = r.get("timestamp_iso")
         if t_iso:
             try:
                 ts = datetime.fromisoformat(t_iso.replace("Z", ""))
-                timestamps.append(ts.strftime("%H:%M"))
+                timestamps.append(ts.strftime("%Y-%m-%d %H:%M"))
             except Exception:
-                timestamps.append("")
+                # fallback to epoch if exists
+                epoch = r.get("timestamp_epoch")
+                if epoch:
+                    try:
+                        ts2 = datetime.utcfromtimestamp(int(epoch))
+                        timestamps.append(ts2.strftime("%Y-%m-%d %H:%M"))
+                    except Exception:
+                        timestamps.append("")
+                else:
+                    timestamps.append("")
         else:
-            timestamps.append("")
+            epoch = r.get("timestamp_epoch")
+            if epoch:
+                try:
+                    ts2 = datetime.utcfromtimestamp(int(epoch))
+                    timestamps.append(ts2.strftime("%Y-%m-%d %H:%M"))
+                except Exception:
+                    timestamps.append("")
+            else:
+                timestamps.append("")
 
     latest = rows[-1] if rows else None
 
+    # Alerts (include blink_rate thresholds)
     alerts = []
     if latest:
         if latest.get("iop") is not None and latest["iop"] > 21:
-            alerts.append("High IOP detected! Consult a doctor.")
+            alerts.append("High IOP detected. Please consult a doctor.")
         if latest.get("blue_light") is not None and latest["blue_light"] > 25:
-            alerts.append("High blue light exposure. Take a break!")
+            alerts.append("High blue light exposure. Consider reducing screen brightness or using protective eyewear.")
         if latest.get("screen_time") is not None and latest["screen_time"] > 5:
-            alerts.append("Reduce screen time to prevent eye strain.")
+            alerts.append("Long screen time detected. Take regular breaks.")
+        # example blink_rate thresholds — tweak as needed
+        if latest.get("blink_rate") is not None:
+            br = latest["blink_rate"]
+            if br < 8:
+                alerts.append("Very low blink rate detected — risk of dry eyes.")
+            elif br < 15:
+                alerts.append("Low blink rate detected — try following 20-20-20 rule.")
 
+    # Pass everything to template. Use keys that templates expect (iop, blue_light, screen_time, blink_rate).
     return render_template(
         "report.html",
         data=latest,
         alerts=alerts,
+        report_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        patient_name=user.get("name", ""),
         iop={"values": iop_values, "timestamps": timestamps},
+        blue_light={"values": blue_values, "timestamps": timestamps},
+        screen_time={"values": screen_values, "timestamps": timestamps},
+        blink_rate={"values": blink_values, "timestamps": timestamps},
     )
 
 @app.route("/hospitals")

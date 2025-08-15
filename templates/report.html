@@ -5,182 +5,198 @@
   <title>Eye-Q Health Report</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Bootstrap -->
+  <!-- Bootstrap & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
 
-  <!-- GSAP -->
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(to right, #1e3c72, #2a5298);
+      background: #f4f6f8;
       color: #212529;
-      min-height: 100vh;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+      padding: 30px;
     }
-
-    .dark-mode {
-      background: #121212 !important;
-      color: #f1f1f1;
-    }
-
-    .report-box {
+    .report-container {
       background: #fff;
-      border-radius: 15px;
-      padding: 2rem;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.25);
-      width: 100%;
-      max-width: 800px;
-      opacity: 0;
-      transform: translateY(50px);
-      transition: background 0.3s, color 0.3s;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      padding: 30px;
     }
-
-    .dark-mode .report-box {
-      background: #1f1f2f;
-      color: #fff;
-      box-shadow: 0 0 10px #444;
+    .report-header {
+      border-bottom: 2px solid #0d6efd;
+      padding-bottom: 15px;
+      margin-bottom: 25px;
     }
-
-    .title {
+    .metric-card {
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      padding: 15px;
       text-align: center;
-      margin-bottom: 1.5rem;
+      background: #fafafa;
+    }
+    .metric-card h6 {
       font-weight: 600;
-      color: #0d6efd;
+      margin-top: 10px;
     }
-
-    .dark-mode .title {
-      color: #4dabf7;
+    .alert-section {
+      margin-top: 20px;
     }
-
-    .metric {
-      font-size: 1.1rem;
-      padding: 10px 0;
-      border-radius: 8px;
-      background: rgba(13, 110, 253, 0.05);
-      margin-bottom: 10px;
+    .chart-section {
+      margin-top: 30px;
     }
-
-    .alert-box h5 {
-      margin-bottom: 10px;
-      font-weight: 600;
-    }
-
-    .btn-export {
-      margin-top: 2rem;
-    }
-
-    .toggle-dark {
-      position: fixed;
-      top: 20px;
-      right: 20px;
+    .footer-note {
+      margin-top: 40px;
+      font-size: 0.9rem;
+      color: #6c757d;
+      text-align: center;
     }
   </style>
 </head>
 <body>
 
-<!-- Dark Mode Toggle -->
-<div class="toggle-dark">
-  <button class="btn btn-sm btn-outline-light" onclick="toggleDarkMode()">Toggle Theme</button>
-</div>
-
-<div class="report-box" id="report-content">
-  <h2 class="title">Eye-Q Health Report</h2>
-
-  <p class="text-muted text-center mb-4">Patient: {{ session.get('email') }} | Phone: {{ session.get('phone') }}</p>
-
-  <div class="row text-center mb-4">
-    <div class="col-md-4">
-      <div class="metric text-info"><strong>IOP:</strong> {{ data.iop if data else 'N/A' }} mmHg</div>
+<div class="container report-container">
+  
+  <!-- Header -->
+  <div class="report-header d-flex justify-content-between align-items-center">
+    <div>
+      <h3 class="mb-0">Eye-Q Health Report</h3>
+      <small>Date: {{ report_date }}</small>
     </div>
-    <div class="col-md-4">
-      <div class="metric text-success"><strong>Blue Light:</strong> {{ data.blue_light if data else 'N/A' }} units</div>
+    <img src="{{ url_for('static', filename='ieee-logo.png') }}" alt="Eye-Q Logo" height="50">
+  </div>
+
+  <!-- Patient Info -->
+  <div class="mb-4">
+    <table class="table table-sm table-borderless">
+      <tr><th>Patient Name:</th><td>{{ patient_name }}</td></tr>
+      <tr><th>Email:</th><td>{{ session.get('email') }}</td></tr>
+      <tr><th>Phone:</th><td>{{ session.get('phone') }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Metrics -->
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="metric-card">
+        <i class="bi bi-eye text-primary fs-2"></i>
+        <h6>IOP</h6>
+        <p class="fs-5 fw-bold">{{ data.iop if data else 'N/A' }} mmHg</p>
+      </div>
     </div>
-    <div class="col-md-4">
-      <div class="metric text-warning"><strong>Screen Time:</strong> {{ data.screen_time if data else 'N/A' }} hrs</div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <i class="bi bi-lightbulb text-warning fs-2"></i>
+        <h6>Blue Light</h6>
+        <p class="fs-5 fw-bold">{{ data.blue_light if data else 'N/A' }} units</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <i class="bi bi-laptop text-success fs-2"></i>
+        <h6>Screen Time</h6>
+        <p class="fs-5 fw-bold">{{ data.screen_time if data else 'N/A' }} hrs</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <i class="bi bi-alarm text-info fs-2"></i>
+        <h6>Blink Rate</h6>
+        <p class="fs-5 fw-bold">{{ data.blink_rate if data else 'N/A' }} blinks/min</p>
+      </div>
     </div>
   </div>
 
+  <!-- Alerts -->
   {% if alerts %}
-  <div class="alert-box">
-    <h5>Alerts</h5>
+  <div class="alert-section">
+    <h5 class="mt-4">Alerts</h5>
     {% for alert in alerts %}
-    <div class="alert alert-warning" role="alert">
-      {{ alert }}
-    </div>
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ alert }}
+      </div>
     {% endfor %}
   </div>
   {% endif %}
 
-  <hr>
-  <h5 class="mb-3">IOP Trend</h5>
-  <canvas id="trendChart" height="100"></canvas>
-
-  <div class="text-center">
-    <button class="btn btn-dark btn-export" onclick="downloadPDF()">Export as PDF</button>
+  <!-- Charts -->
+  <div class="chart-section row g-4">
+    <div class="col-md-6">
+      <canvas id="iopChart"></canvas>
+    </div>
+    <div class="col-md-6">
+      <canvas id="blinkChart"></canvas>
+    </div>
+    <div class="col-md-6">
+      <canvas id="screenChart"></canvas>
+    </div>
+    <div class="col-md-6">
+      <canvas id="blueLightChart"></canvas>
+    </div>
   </div>
+
+  <div class="footer-note">
+    This report is generated automatically by Eye-Q Monitoring System.<br>
+    Consult your healthcare provider for professional medical advice.
+  </div>
+
 </div>
 
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
 <script>
-  // Animate report box
-  gsap.to("#report-content", {
-    duration: 1,
-    opacity: 1,
-    y: 0,
-    ease: "power3.out"
-  });
-
-  // Chart.js
-  const chart = new Chart(document.getElementById("trendChart"), {
+  new Chart(document.getElementById("iopChart"), {
     type: 'line',
     data: {
       labels: {{ iop.timestamps|tojson }},
       datasets: [{
         label: 'IOP (mmHg)',
         data: {{ iop.values|tojson }},
-        borderColor: 'rgba(33, 150, 243, 1)',
-        backgroundColor: 'rgba(33, 150, 243, 0.2)',
-        fill: true,
-        tension: 0.3
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13,110,253,0.1)',
+        fill: true
       }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: false
-        }
-      }
     }
   });
-
-  // Download PDF
-  function downloadPDF() {
-    const report = document.getElementById("report-content");
-    html2pdf().from(report).save("EyeQ_Health_Report.pdf");
-  }
-
-  // Dark Mode
-  function toggleDarkMode() {
-    document.body.classList.toggle("dark-mode");
-    localStorage.setItem('theme', document.body.classList.contains("dark-mode") ? 'dark' : 'light');
-  }
-
-  // Load saved theme
-  window.onload = () => {
-    if (localStorage.getItem('theme') === 'dark') {
-      document.body.classList.add("dark-mode");
+  new Chart(document.getElementById("blinkChart"), {
+    type: 'line',
+    data: {
+      labels: {{ blink_rate.timestamps|tojson }},
+      datasets: [{
+        label: 'Blink Rate (blinks/min)',
+        data: {{ blink_rate.values|tojson }},
+        borderColor: '#17a2b8',
+        backgroundColor: 'rgba(23,162,184,0.1)',
+        fill: true
+      }]
     }
-  };
+  });
+  new Chart(document.getElementById("screenChart"), {
+    type: 'line',
+    data: {
+      labels: {{ screen_time.timestamps|tojson }},
+      datasets: [{
+        label: 'Screen Time (hrs)',
+        data: {{ screen_time.values|tojson }},
+        borderColor: '#28a745',
+        backgroundColor: 'rgba(40,167,69,0.1)',
+        fill: true
+      }]
+    }
+  });
+  new Chart(document.getElementById("blueLightChart"), {
+    type: 'line',
+    data: {
+      labels: {{ blue_light.timestamps|tojson }},
+      datasets: [{
+        label: 'Blue Light Exposure (units)',
+        data: {{ blue_light.values|tojson }},
+        borderColor: '#ffc107',
+        backgroundColor: 'rgba(255,193,7,0.1)',
+        fill: true
+      }]
+    }
+  });
 </script>
 
 </body>

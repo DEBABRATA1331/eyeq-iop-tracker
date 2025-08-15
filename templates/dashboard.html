@@ -91,25 +91,32 @@
 
   <!-- Metrics -->
   <div class="row g-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card text-center">
         <h5>IOP</h5>
         <div id="iop-value" class="metric-value text-info">{{ data.iop if data else 'N/A' }}</div>
         <small>mmHg</small>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card text-center">
         <h5>Blue Light</h5>
         <div id="blue-value" class="metric-value text-success">{{ data.blue_light if data else 'N/A' }}</div>
         <small>units</small>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card text-center">
         <h5>Screen Time</h5>
         <div id="screen-value" class="metric-value text-warning">{{ data.screen_time if data else 'N/A' }}</div>
         <small>hours</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <h5>Blink Rate</h5>
+        <div id="blink-value" class="metric-value text-primary">{{ data.blink_rate if data else 'N/A' }}</div>
+        <small>blinks/min</small>
       </div>
     </div>
   </div>
@@ -132,6 +139,7 @@
     <button class="btn btn-outline-primary btn-custom" onclick="showChart('iop')">IOP</button>
     <button class="btn btn-outline-success btn-custom" onclick="showChart('blue')">Blue Light</button>
     <button class="btn btn-outline-warning btn-custom" onclick="showChart('screen')">Screen Time</button>
+    <button class="btn btn-outline-info btn-custom" onclick="showChart('blink')">Blink Rate</button>
   </div>
 
   <!-- Chart -->
@@ -174,6 +182,12 @@
       data: {{ screen_time["values"]|default([], true)|tojson }},
       labels: {{ screen_time["timestamps"]|default([], true)|tojson }},
       color: 'rgba(255, 152, 0, 1)'
+    },
+    blink: {
+      label: 'Blink Rate (blinks/min)',
+      data: {{ blink_rate["values"]|default([], true)|tojson }},
+      labels: {{ blink_rate["timestamps"]|default([], true)|tojson }},
+      color: 'rgba(0, 188, 212, 1)'
     }
   };
 
@@ -205,6 +219,7 @@
         document.getElementById("iop-value").innerText = data.iop ?? 'N/A';
         document.getElementById("blue-value").innerText = data.blue_light ?? 'N/A';
         document.getElementById("screen-value").innerText = data.screen_time ?? 'N/A';
+        document.getElementById("blink-value").innerText = data.blink_rate ?? 'N/A';
       });
   }, 5000);
 
