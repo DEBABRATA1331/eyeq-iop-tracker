@@ -7,75 +7,80 @@
 
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  
+
   <!-- GSAP -->
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/ScrollTrigger.min.js"></script>
-  <script>
-  // Set target date (e.g., event on August 10, 2025)
-  const eventDate = new Date("2025-08-10T00:00:00").getTime();
-
-  const countdown = document.querySelector('.countdown');
-
-  setInterval(() => {
-    const now = new Date().getTime();
-    const distance = eventDate - now;
-
-    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((distance / (1000 * 60 * 60)) % 24);
-    const minutes = Math.floor((distance / (1000 * 60)) % 60);
-    const seconds = Math.floor((distance / 1000) % 60);
-
-    countdown.innerHTML = `${days} Days ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  }, 1000);
-</script>
-
 
   <style>
     body {
-      transition: background 0.3s, color 0.3s;
+      background: linear-gradient(135deg, #f0f4ff, #dce3f0);
+      transition: background 0.4s, color 0.4s;
+      font-family: 'Segoe UI', sans-serif;
     }
 
     .dark-mode {
-      --box-bg: #1e1e2f;
-      --text-muted: #ddd;
-      background-color: #121212;
-      color: #f1f1f1;
+      background: linear-gradient(135deg, #0e1117, #1e2430);
+      color: #f5f5f5;
+    }
+
+    .dark-mode .welcome-box {
+      background: #1b2230;
+      color: #e0e0e0;
+    }
+
+    .dark-mode .text-muted {
+      color: #bbb !important;
+    }
+
+    .dark-mode .btn-outline-dark {
+      color: #fff;
+      border-color: #bbb;
+    }
+
+    .dark-mode .btn-outline-dark:hover {
+      background-color: #444;
     }
 
     .dark-mode-toggle {
       position: absolute;
       top: 15px;
       right: 20px;
-      cursor: pointer;
+      z-index: 1000;
     }
 
     .welcome-box {
-      background: var(--box-bg, white);
-      border-radius: 15px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-      padding: 3rem;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+      padding: 2.5rem;
       margin-top: 1.5rem;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .logo-circle {
       width: 80px;
       height: 80px;
-      background-color: #0d6efd;
+      background: #0d6efd;
       border-radius: 50%;
       margin: 0 auto 1rem auto;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
+      font-size: 28px;
+      font-weight: bold;
       color: white;
+      letter-spacing: 1px;
     }
 
     .carousel-item {
       text-align: center;
+      padding: 2rem 1rem;
     }
 
-    iframe, video {
+    iframe {
       width: 100%;
       border-radius: 12px;
       margin-top: 1.5rem;
@@ -85,32 +90,37 @@
     .partner-logo {
       height: 40px;
       margin: 0 10px;
-      opacity: 0.8;
+      opacity: 0.85;
+      transition: opacity 0.3s;
+    }
+
+    .partner-logo:hover {
+      opacity: 1;
     }
   </style>
 </head>
 <body>
 
-<!-- 🌗 Dark Mode Toggle -->
+<!-- Dark Mode Toggle -->
 <div class="dark-mode-toggle">
-  <button class="btn btn-sm btn-outline-dark" onclick="toggleDarkMode()">🌙 Toggle Dark Mode</button>
+  <button class="btn btn-sm btn-outline-dark" onclick="toggleDarkMode()">Toggle Dark Mode</button>
 </div>
 
 <div class="container">
-  <!-- 🎠 Onboarding Carousel -->
+  <!-- Onboarding Carousel -->
   <div id="onboardingCarousel" class="carousel slide mb-5 mt-4" data-bs-ride="carousel">
     <div class="carousel-inner">
       <div class="carousel-item active">
-        <h4>👁️ Welcome to Eye-Q</h4>
-        <p>Monitor your intraocular pressure (IOP) at home.</p>
+        <h4>Welcome to Eye-Q</h4>
+        <p>Track your intraocular pressure (IOP) conveniently from home.</p>
       </div>
       <div class="carousel-item">
-        <h4>📈 Real-Time Eye Insights</h4>
-        <p>Get alerts for IOP, screen time, and blue light exposure.</p>
+        <h4>Real-Time Eye Insights</h4>
+        <p>Stay updated with IOP, screen time, and blue light exposure alerts.</p>
       </div>
       <div class="carousel-item">
-        <h4>🚑 Instant Recommendations</h4>
-        <p>Find nearby hospitals and access reports instantly.</p>
+        <h4>Instant Recommendations</h4>
+        <p>Find nearby hospitals and access your reports instantly.</p>
       </div>
     </div>
     <button class="carousel-control-prev" type="button" data-bs-target="#onboardingCarousel" data-bs-slide="prev">
@@ -123,40 +133,39 @@
 
   <!-- Main Welcome Card -->
   <div class="welcome-box text-center" id="mainBox">
-
     <!-- IEEE Logo -->
     <img src="{{ url_for('static', filename='images/ieee-logo.png') }}" alt="IEEE Logo" style="height: 60px; margin-bottom: 20px;">
 
-    <div class="logo-circle">👁️</div>
-    <h2 class="text-primary mb-2">Welcome to Eye-Q</h2>
-    <p class="text-muted">Your AI-Powered Eye Health & IOP Monitoring Companion</p>
+    <div class="logo-circle">Eye-Q</div>
+    <h2 class="text-primary mb-2">Your AI-Powered Eye Health Partner</h2>
+    <p class="text-muted">Accurate, real-time IOP monitoring and preventive eye health insights.</p>
 
     <ul class="list-unstyled mt-4">
-      <li>📈 Live IOP & Eye Metrics</li>
-      <li>🔵 Screen Time Alerts</li>
-      <li>🗂️ Health Reports</li>
-      <li>🏥 Hospital Recommendations</li>
+      <li>Live IOP & Eye Metrics</li>
+      <li>Screen Time & Blue Light Alerts</li>
+      <li>Detailed Health Reports</li>
+      <li>Nearby Hospital Recommendations</li>
     </ul>
 
-    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg w-100 mt-4">🚀 Get Started</a>
+    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg w-100 mt-4">Get Started</a>
 
-    <!-- Demo Video or GIF -->
-    <h5 class="mt-5 text-secondary">🎥 Eye-Q in Action</h5>
+    <!-- Demo Video -->
+    <h5 class="mt-5 text-secondary">Eye-Q in Action</h5>
     <iframe src="https://www.youtube.com/embed/9geREeE13jc" frameborder="0" allowfullscreen></iframe>
 
     <!-- Testimonials -->
     <div class="mt-5 text-start">
-      <h5 class="text-secondary">💬 What Users Say</h5>
+      <h5 class="text-secondary">What Users Say</h5>
       <blockquote class="blockquote mt-3">
-        <p>"This app helps me track glaucoma risks with ease."</p>
+        <p>"Eye-Q makes glaucoma risk tracking effortless."</p>
         <footer class="blockquote-footer">Priya, Delhi</footer>
       </blockquote>
       <blockquote class="blockquote mt-3">
-        <p>"The screen time alerts are a life-saver."</p>
+        <p>"The screen time alerts have improved my daily habits."</p>
         <footer class="blockquote-footer">Arjun, Bengaluru</footer>
       </blockquote>
 
-      <h6 class="mt-4">🌐 Trusted By:</h6>
+      <h6 class="mt-4">Trusted By:</h6>
       <div class="d-flex align-items-center">
         <img src="{{ url_for('static', filename='partners/aiims.png') }}" class="partner-logo" alt="AIIMS">
         <img src="{{ url_for('static', filename='partners/isro.png') }}" class="partner-logo" alt="ISRO">
@@ -168,12 +177,13 @@
 
 <!-- Scripts -->
 <script>
-  // GSAP scroll animation
+  // GSAP Animation
   gsap.registerPlugin(ScrollTrigger);
   gsap.from("#mainBox", {
     opacity: 0,
-    y: 50,
+    y: 60,
     duration: 1.2,
+    ease: "power3.out",
     scrollTrigger: "#mainBox"
   });
 

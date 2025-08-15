@@ -16,7 +16,9 @@
 
   <style>
     body {
-      background: linear-gradient(to right, #1e3c72, #2a5298);
+      background: linear-gradient(120deg, #1e3c72, #2a5298);
+      background-size: 400% 400%;
+      animation: bgAnimation 12s ease infinite;
       color: #fff;
       height: 100vh;
       display: flex;
@@ -24,18 +26,23 @@
       justify-content: center;
       font-family: 'Segoe UI', sans-serif;
       overflow: hidden;
-      transition: background 0.3s;
+    }
+
+    @keyframes bgAnimation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
     .dark-mode {
-      background: #121212 !important;
+      background: #0f0f0f;
       color: #f1f1f1;
     }
 
     .dark-mode .login-box {
       background: #1f1f2f;
       color: #fff;
-      box-shadow: 0 0 10px #444;
+      box-shadow: 0 0 10px rgba(255,255,255,0.05);
     }
 
     .dark-mode .form-control {
@@ -47,9 +54,9 @@
     .login-box {
       background: #fff;
       color: #000;
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 2rem;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
       width: 100%;
       max-width: 400px;
       opacity: 0;
@@ -66,26 +73,38 @@
       position: absolute;
       top: 20px;
       right: 20px;
+      z-index: 10;
     }
 
     .lottie-icon {
-      height: 100px;
+      height: 120px;
       margin: 0 auto 1rem auto;
+    }
+
+    .btn-primary {
+      border-radius: 30px;
+      padding: 0.6rem;
+      font-size: 1rem;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    .btn-primary:hover {
+      transform: scale(1.05);
     }
   </style>
 </head>
 <body>
 
-<!-- 🌗 Dark Mode Toggle -->
+<!-- Dark Mode Toggle -->
 <div class="toggle-dark">
-  <button class="btn btn-sm btn-outline-light" onclick="toggleDarkMode()">🌙 Toggle Dark Mode</button>
+  <button class="btn btn-sm btn-outline-light" onclick="toggleDarkMode()">Toggle Dark Mode</button>
 </div>
 
 <div class="login-box" id="loginBox">
-  <!-- 🌀 Lottie Eye Icon -->
+  <!-- Lottie Animation -->
   <div class="lottie-icon" id="lottie-eye"></div>
 
-  <!-- ⚠️ Alert from Flask (auto dismiss + animation) -->
+  <!-- Flask Alerts -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -96,23 +115,23 @@
     {% endif %}
   {% endwith %}
 
-  <h4 class="text-center mb-4 text-primary">🔐 Login to Eye-Q</h4>
+  <h4 class="text-center mb-4">Login to Eye-Q</h4>
   <form action="/login" method="POST">
-  <div class="mb-3">
-    <label for="email" class="form-label">Email address</label>
-    <input required type="email" class="form-control" name="email" id="email" placeholder="you@example.com">
-  </div>
-  <div class="d-grid">
-    <button type="submit" class="btn btn-primary">📨 Send OTP</button>
-  </div>
-</form>
-
+    <div class="mb-3">
+      <label for="email" class="form-label">Email address</label>
+      <input required type="email" class="form-control" name="email" id="email" placeholder="you@example.com">
+    </div>
+    <div class="d-grid">
+      <button type="submit" class="btn btn-primary">Send OTP</button>
+    </div>
+  </form>
+</div>
 
 <!-- Scripts -->
 <script>
   // Slide in animation
   gsap.to("#loginBox", {
-    duration: 1,
+    duration: 1.2,
     opacity: 1,
     y: 0,
     ease: "power3.out"
@@ -122,11 +141,11 @@
   gsap.from(".animated-alert", {
     opacity: 0,
     y: -20,
-    duration: 0.5,
+    duration: 0.6,
     stagger: 0.1
   });
 
-  // Lottie icon
+  // Lottie animation
   lottie.loadAnimation({
     container: document.getElementById("lottie-eye"),
     renderer: "svg",
