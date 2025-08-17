@@ -22,17 +22,16 @@
       font-family: 'Quicksand', sans-serif;
       background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
       min-height: 100vh;
-      transition: background 0.3s, color 0.3s;
     }
     .dark-mode {
       background: #121212 !important;
       color: #f1f1f1 !important;
     }
-    .dark-mode .card {
+    .dark-mode .card,
+    .dark-mode .chart-card,
+    .dark-mode .nav-card {
       background-color: #1e1e1e !important;
       color: #fff !important;
-      border: none;
-      box-shadow: 0 0 15px rgba(0,0,0,0.3);
     }
     .dashboard-header {
       text-align: center;
@@ -40,6 +39,10 @@
       font-weight: 600;
       font-size: 2rem;
       color: #2a5298;
+      white-space: nowrap;
+      overflow: hidden;
+      border-right: 3px solid #2a5298;
+      width: 0;
     }
     .card {
       border-radius: 16px;
@@ -47,10 +50,7 @@
       border: none;
       background: white;
       box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-      transition: transform 0.2s ease-in-out;
-    }
-    .card:hover {
-      transform: translateY(-5px);
+      height: 100%;
     }
     .metric-value {
       font-size: 2.5rem;
@@ -64,18 +64,31 @@
       z-index: 999;
     }
     .chart-card {
+      display: none;
       padding: 1.5rem;
       border-radius: 16px;
       background: white;
       box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-      transition: all 0.3s ease-in-out;
-    }
-    .dark-mode .chart-card {
-      background: #1e1e1e !important;
     }
     .btn-custom {
       border-radius: 30px;
       padding: 0.5rem 1.2rem;
+    }
+    .loading-bar {
+      height: 5px;
+      width: 0;
+      background: linear-gradient(90deg, #2a5298, #1e90ff);
+      border-radius: 3px;
+      margin: 10px 0;
+    }
+    .nav-card {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+      opacity: 0;
+      transform: translateY(30px);
     }
   </style>
 </head>
@@ -87,7 +100,7 @@
 </div>
 
 <div class="container py-4" id="dashboard-content">
-  <h2 class="dashboard-header">Eye-Q Health Dashboard</h2>
+  <h2 class="dashboard-header" id="typewriter">Eye-Q Health Dashboard</h2>
 
   <!-- Metrics -->
   <div class="row g-4">
@@ -121,18 +134,8 @@
     </div>
   </div>
 
-  <!-- Alerts -->
-  {% if alerts %}
-  <div class="mt-4">
-    <h5>Alerts</h5>
-    {% for alert in alerts %}
-    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-      {{ alert }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+  <!-- Loading Bar -->
+  <div class="loading-bar" id="loadingBar"></div>
 
   <!-- Chart Controls -->
   <div class="text-center mt-4">
@@ -143,13 +146,13 @@
   </div>
 
   <!-- Chart -->
-  <div class="chart-card mt-4">
-    <h5 id="chart-title">IOP Trend</h5>
+  <div class="chart-card mt-4" id="chartCard">
+    <h5 id="chart-title">Trend</h5>
     <canvas id="trendChart" height="100"></canvas>
   </div>
 
-  <!-- Navigation -->
-  <div class="text-center mt-5">
+  <!-- Navigation (Animated Card) -->
+  <div class="nav-card text-center" id="navCard">
     <a href="{{ url_for('history') }}" class="btn btn-outline-primary btn-custom">History</a>
     <a href="{{ url_for('report') }}" class="btn btn-outline-secondary btn-custom">Report</a>
     <a href="{{ url_for('hospitals') }}" class="btn btn-outline-success btn-custom">Hospitals</a>
@@ -165,54 +168,29 @@
   const ctx = document.getElementById('trendChart').getContext('2d');
 
   const chartData = {
-    iop: {
-      label: 'IOP (mmHg)',
-      data: {{ iop["values"]|default([], true)|tojson }},
-      labels: {{ iop["timestamps"]|default([], true)|tojson }},
-      color: 'rgba(33, 150, 243, 1)'
-    },
-    blue: {
-      label: 'Blue Light',
-      data: {{ blue_light["values"]|default([], true)|tojson }},
-      labels: {{ blue_light["timestamps"]|default([], true)|tojson }},
-      color: 'rgba(76, 175, 80, 1)'
-    },
-    screen: {
-      label: 'Screen Time (hrs)',
-      data: {{ screen_time["values"]|default([], true)|tojson }},
-      labels: {{ screen_time["timestamps"]|default([], true)|tojson }},
-      color: 'rgba(255, 152, 0, 1)'
-    },
-    blink: {
-      label: 'Blink Rate (blinks/min)',
-      data: {{ blink_rate["values"]|default([], true)|tojson }},
-      labels: {{ blink_rate["timestamps"]|default([], true)|tojson }},
-      color: 'rgba(0, 188, 212, 1)'
-    }
+    iop: { label: 'IOP (mmHg)', data: {{ iop["values"]|default([], true)|tojson }}, labels: {{ iop["timestamps"]|default([], true)|tojson }}, color: 'rgba(33, 150, 243, 1)' },
+    blue: { label: 'Blue Light', data: {{ blue_light["values"]|default([], true)|tojson }}, labels: {{ blue_light["timestamps"]|default([], true)|tojson }}, color: 'rgba(76, 175, 80, 1)' },
+    screen: { label: 'Screen Time (hrs)', data: {{ screen_time["values"]|default([], true)|tojson }}, labels: {{ screen_time["timestamps"]|default([], true)|tojson }}, color: 'rgba(255, 152, 0, 1)' },
+    blink: { label: 'Blink Rate (blinks/min)', data: {{ blink_rate["values"]|default([], true)|tojson }}, labels: {{ blink_rate["timestamps"]|default([], true)|tojson }}, color: 'rgba(0, 188, 212, 1)' }
   };
 
   function showChart(type) {
+    const chartCard = document.getElementById("chartCard");
+    chartCard.style.display = "block";
     document.getElementById('chart-title').innerText = `${chartData[type].label} Trend`;
     if (chart) chart.destroy();
     chart = new Chart(ctx, {
       type: 'line',
-      data: {
-        labels: chartData[type].labels,
-        datasets: [{
-          label: chartData[type].label,
-          data: chartData[type].data,
-          borderColor: chartData[type].color,
-          backgroundColor: chartData[type].color.replace('1)', '0.15)'),
-          fill: true,
-          tension: 0.4
-        }]
-      },
+      data: { labels: chartData[type].labels, datasets: [{ label: chartData[type].label, data: chartData[type].data, borderColor: chartData[type].color, backgroundColor: chartData[type].color.replace('1)', '0.15)'), fill: true, tension: 0.4 }] },
       options: { responsive: true }
     });
   }
 
-  // Auto-refresh data
+  // Auto-refresh with loading bar
   setInterval(() => {
+    const bar = document.getElementById("loadingBar");
+    gsap.fromTo(bar, { width: "0%" }, { width: "100%", duration: 2, onComplete: () => bar.style.width = "0%" });
+
     fetch("/api/latest_data")
       .then(res => res.json())
       .then(data => {
@@ -236,21 +214,9 @@
   }
 
   // GSAP Animations
-  // Animate cards
   gsap.from(".card", { opacity: 0, y: 50, stagger: 0.1, duration: 0.6 });
-  // Animate main header
-  gsap.from(".dashboard-header", { opacity: 0, y: -20, duration: 0.6 });
-  // Animate all headings (h2, h5 inside cards, alerts, chart title)
-  gsap.from("h1, h2, h3, h4, h5, h6", { 
-    opacity: 0, 
-    y: 20, 
-    stagger: 0.15, 
-    duration: 0.7,
-    delay: 0.2 
-  });
-
-  // Init chart
-  showChart('iop');
+  gsap.to(".dashboard-header", { width: "18ch", duration: 2, ease: "steps(18)" });
+  gsap.to("#navCard", { opacity: 1, y: 0, delay: 2, duration: 1 });
 </script>
 </body>
 </html>
