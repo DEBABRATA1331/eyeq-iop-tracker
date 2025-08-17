@@ -15,7 +15,7 @@
   <style>
     body {
       background: linear-gradient(135deg, #f0f4ff, #dce3f0);
-      transition: background 0.4s, color 0.4s;
+      transition: background 0.6s ease, color 0.6s ease;
       font-family: 'Segoe UI', sans-serif;
     }
 
@@ -60,19 +60,11 @@
       margin-right: auto;
     }
 
-    .logo-circle {
-      width: 80px;
-      height: 80px;
-      background: #0d6efd;
-      border-radius: 50%;
-      margin: 0 auto 1rem auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      font-weight: bold;
-      color: white;
-      letter-spacing: 1px;
+    .welcome-logo {
+      height: 80px; 
+      margin-bottom: 40px; 
+      opacity: 0;
+      filter: drop-shadow(0 0 0px rgba(13,110,253,0.6));
     }
 
     .carousel-item {
@@ -104,7 +96,7 @@
       white-space: nowrap;
       overflow: hidden;
       display: inline-block;
-      opacity: 0; /* hidden until animation starts */
+      opacity: 0;
     }
   </style>
 </head>
@@ -144,8 +136,8 @@
   <div class="welcome-box text-center" id="mainBox">
     <!-- Eye-Q Logo -->
     <img src="{{ url_for('static', filename='EYE_Q_LOGO.png') }}" 
-     alt="Eye-Q Logo" 
-     style="height: 80px; margin-bottom: 40px;">
+     alt="Eye-Q Logo" class="welcome-logo" id="welcomeLogo">
+    
     <h2 class="text-primary mb-2 typewriter main-heading">Your AI-Powered Eye Health Partner</h2>
     <p class="text-muted">Accurate, real-time IOP monitoring and preventive eye health insights.</p>
 
@@ -227,7 +219,27 @@
   window.addEventListener("load", () => {
     const mainHeading = document.querySelector(".main-heading");
     const carouselHeadings = document.querySelectorAll(".carousel-item .typewriter");
+    const logo = document.getElementById("welcomeLogo");
 
+    // Logo glow animation
+    gsap.to(logo, {
+      duration: 1.2,
+      opacity: 1,
+      scale: 1,
+      filter: "drop-shadow(0 0 20px rgba(13,110,253,0.8))",
+      ease: "power3.out"
+    });
+
+    // Animate main heading first
+    const fullMainText = mainHeading.textContent.trim();
+    mainHeading.textContent = "";
+    gsap.to(mainHeading, { opacity: 1, duration: 0.6, delay: 0.8, onComplete: () => {
+      typeWriterEffect(mainHeading, fullMainText, 100, () => {
+        setTimeout(() => runSequentially(carouselHeadings), 700);
+      });
+    }});
+
+    // Animate carousel headings only when active slide is shown
     function runSequentially(elements, i = 0) {
       if (i < elements.length) {
         const el = elements[i];
@@ -240,15 +252,6 @@
         }});
       }
     }
-
-    // Animate main heading first
-    const fullMainText = mainHeading.textContent.trim();
-    mainHeading.textContent = "";
-    gsap.to(mainHeading, { opacity: 1, duration: 0.6, onComplete: () => {
-      typeWriterEffect(mainHeading, fullMainText, 100, () => {
-        setTimeout(() => runSequentially(carouselHeadings), 700);
-      });
-    }});
   });
 </script>
 
