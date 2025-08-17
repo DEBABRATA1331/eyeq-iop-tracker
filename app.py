@@ -6,7 +6,10 @@ import uuid
 import random
 import smtplib
 from datetime import datetime, timedelta
-
+from flask import send_file
+import io
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from email.message import EmailMessage
@@ -471,6 +474,25 @@ def latest_data():
     user_id = user["id"]
     row = get_latest_log(user_id)
     return jsonify(row or {})
+def download_report():
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph("Eye-Q Health Report", styles['Title']))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"Patient: {session.get('patient_name', 'N/A')}", styles['Normal']))
+    elements.append(Paragraph(f"Email: {session.get('email', 'N/A')}", styles['Normal']))
+    elements.append(Paragraph(f"Phone: {session.get('phone', 'N/A')}", styles['Normal']))
+    elements.append(Spacer(1, 12))
+
+    # You can add metrics & suggestions here as well
+    elements.append(Paragraph("Metrics & AI Suggestions included...", styles['Normal']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name="EyeQ_Report.pdf", mimetype="application/pdf")
 
 # ------------------ MAIN ------------------
 if __name__ == "__main__":
