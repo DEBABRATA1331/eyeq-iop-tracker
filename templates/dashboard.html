@@ -236,8 +236,18 @@
   }
 
   // GSAP Animations
+  // Animate cards
   gsap.from(".card", { opacity: 0, y: 50, stagger: 0.1, duration: 0.6 });
-  gsap.from(".dashboard-header", { opacity: 0, y: -20, duration: 0.5 });
+  // Animate main header
+  gsap.from(".dashboard-header", { opacity: 0, y: -20, duration: 0.6 });
+  // Animate all headings (h2, h5 inside cards, alerts, chart title)
+  gsap.from("h1, h2, h3, h4, h5, h6", { 
+    opacity: 0, 
+    y: 20, 
+    stagger: 0.15, 
+    duration: 0.7,
+    delay: 0.2 
+  });
 
   // Init chart
   showChart('iop');
