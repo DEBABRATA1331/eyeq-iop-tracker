@@ -47,6 +47,17 @@
     .chart-section {
       margin-top: 30px;
     }
+    .suggestion-section {
+      margin-top: 40px;
+      padding: 20px;
+      background: #f9fcff;
+      border: 1px solid #dee2e6;
+      border-radius: 12px;
+    }
+    .suggestion-section h5 {
+      margin-bottom: 15px;
+      color: #0d6efd;
+    }
     .footer-note {
       margin-top: 40px;
       font-size: 0.9rem;
@@ -65,7 +76,7 @@
       <h3 class="mb-0">Eye-Q Health Report</h3>
       <small>Date: {{ report_date }}</small>
     </div>
-    <img src="{{ url_for('static', filename='ieee-logo.png') }}" alt="Eye-Q Logo" height="50">
+    <img src="{{ url_for('static', filename='EYE_Q_LOGO.png') }}" alt="Eye-Q Logo" height="50">
   </div>
 
   <!-- Patient Info -->
@@ -135,6 +146,56 @@
     <div class="col-md-6">
       <canvas id="blueLightChart"></canvas>
     </div>
+  </div>
+
+  <!-- AI Suggestions -->
+  <div class="suggestion-section">
+    <h5><i class="bi bi-robot me-2"></i>AI Health Suggestions</h5>
+    <ul>
+      <!-- IOP -->
+      {% if data.iop %}
+        {% if data.iop < 10 %}
+          <li><b>IOP:</b> Your IOP ({{ data.iop }} mmHg) is below normal. Low eye pressure may risk vision loss — consult your doctor.</li>
+        {% elif data.iop > 21 %}
+          <li><b>IOP:</b> Your IOP ({{ data.iop }} mmHg) is above the normal range. This may increase glaucoma risk. Please seek medical advice.</li>
+        {% else %}
+          <li><b>IOP:</b> Normal ({{ data.iop }} mmHg). Keep monitoring regularly.</li>
+        {% endif %}
+      {% endif %}
+
+      <!-- Blue Light -->
+      {% if data.blue_light %}
+        {% if data.blue_light > 100 %}
+          <li><b>Blue Light:</b> High exposure ({{ data.blue_light }} units). Consider blue light glasses and reducing screen brightness.</li>
+        {% elif data.blue_light > 50 %}
+          <li><b>Blue Light:</b> Moderate exposure ({{ data.blue_light }} units). Take breaks to protect your eyes.</li>
+        {% else %}
+          <li><b>Blue Light:</b> Within safe range ({{ data.blue_light }} units).</li>
+        {% endif %}
+      {% endif %}
+
+      <!-- Screen Time -->
+      {% if data.screen_time %}
+        {% if data.screen_time > 6 %}
+          <li><b>Screen Time:</b> Excessive ({{ data.screen_time }} hrs). Reduce usage and follow the 20-20-20 rule.</li>
+        {% elif data.screen_time > 2 %}
+          <li><b>Screen Time:</b> Moderate ({{ data.screen_time }} hrs). Take short breaks to avoid strain.</li>
+        {% else %}
+          <li><b>Screen Time:</b> Healthy level ({{ data.screen_time }} hrs).</li>
+        {% endif %}
+      {% endif %}
+
+      <!-- Blink Rate -->
+      {% if data.blink_rate %}
+        {% if data.blink_rate < 10 %}
+          <li><b>Blink Rate:</b> Low ({{ data.blink_rate }} blinks/min). Practice blinking exercises 5 times a day and take rest breaks.</li>
+        {% elif data.blink_rate > 25 %}
+          <li><b>Blink Rate:</b> Higher than normal ({{ data.blink_rate }} blinks/min). Could indicate dryness or irritation — stay hydrated.</li>
+        {% else %}
+          <li><b>Blink Rate:</b> Normal ({{ data.blink_rate }} blinks/min).</li>
+        {% endif %}
+      {% endif %}
+    </ul>
   </div>
 
   <div class="footer-note">

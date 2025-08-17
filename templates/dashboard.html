@@ -29,7 +29,8 @@
     }
     .dark-mode .card,
     .dark-mode .chart-card,
-    .dark-mode .nav-card {
+    .dark-mode .nav-card,
+    .dark-mode .suggestion-card {
       background-color: #1e1e1e !important;
       color: #fff !important;
     }
@@ -63,7 +64,7 @@
       right: 15px;
       z-index: 999;
     }
-    .chart-card {
+    .chart-card, .suggestion-card {
       display: none;
       padding: 1.5rem;
       border-radius: 16px;
@@ -115,7 +116,7 @@
       <div class="card text-center">
         <h5>Blue Light</h5>
         <div id="blue-value" class="metric-value text-success">{{ data.blue_light if data else 'N/A' }}</div>
-        <small>units</small>
+        <small>hours</small>
       </div>
     </div>
     <div class="col-md-3">
@@ -151,6 +152,12 @@
     <canvas id="trendChart" height="100"></canvas>
   </div>
 
+  <!-- AI Suggestions -->
+  <div class="suggestion-card mt-4" id="suggestionCard">
+    <h5>AI Health Suggestions</h5>
+    <ul id="suggestionList" class="list-group list-group-flush"></ul>
+  </div>
+
   <!-- Navigation (Animated Card) -->
   <div class="nav-card text-center" id="navCard">
     <a href="{{ url_for('history') }}" class="btn btn-outline-primary btn-custom">History</a>
@@ -169,20 +176,70 @@
 
   const chartData = {
     iop: { label: 'IOP (mmHg)', data: {{ iop["values"]|default([], true)|tojson }}, labels: {{ iop["timestamps"]|default([], true)|tojson }}, color: 'rgba(33, 150, 243, 1)' },
-    blue: { label: 'Blue Light', data: {{ blue_light["values"]|default([], true)|tojson }}, labels: {{ blue_light["timestamps"]|default([], true)|tojson }}, color: 'rgba(76, 175, 80, 1)' },
+    blue: { label: 'Blue Light (hrs)', data: {{ blue_light["values"]|default([], true)|tojson }}, labels: {{ blue_light["timestamps"]|default([], true)|tojson }}, color: 'rgba(76, 175, 80, 1)' },
     screen: { label: 'Screen Time (hrs)', data: {{ screen_time["values"]|default([], true)|tojson }}, labels: {{ screen_time["timestamps"]|default([], true)|tojson }}, color: 'rgba(255, 152, 0, 1)' },
     blink: { label: 'Blink Rate (blinks/min)', data: {{ blink_rate["values"]|default([], true)|tojson }}, labels: {{ blink_rate["timestamps"]|default([], true)|tojson }}, color: 'rgba(0, 188, 212, 1)' }
   };
 
   function showChart(type) {
-    const chartCard = document.getElementById("chartCard");
-    chartCard.style.display = "block";
+    document.getElementById("chartCard").style.display = "block";
+    document.getElementById("suggestionCard").style.display = "block";
+
     document.getElementById('chart-title').innerText = `${chartData[type].label} Trend`;
     if (chart) chart.destroy();
     chart = new Chart(ctx, {
       type: 'line',
       data: { labels: chartData[type].labels, datasets: [{ label: chartData[type].label, data: chartData[type].data, borderColor: chartData[type].color, backgroundColor: chartData[type].color.replace('1)', '0.15)'), fill: true, tension: 0.4 }] },
       options: { responsive: true }
+    });
+
+    generateSuggestions();
+  }
+
+  function generateSuggestions() {
+    const iop = parseFloat(document.getElementById("iop-value").innerText) || null;
+    const blue = parseFloat(document.getElementById("blue-value").innerText) || null;
+    const screen = parseFloat(document.getElementById("screen-value").innerText) || null;
+    const blink = parseFloat(document.getElementById("blink-value").innerText) || null;
+
+    const suggestions = [];
+
+    // IOP
+    if (iop) {
+      if (iop < 10) suggestions.push("⚠️ IOP too low – consult an ophthalmologist.");
+      else if (iop <= 21) suggestions.push("✅ IOP is normal.");
+      else if (iop <= 24) suggestions.push("⚠️ Slightly high IOP – schedule checkup soon.");
+      else suggestions.push("🚨 High IOP – risk of glaucoma, consult doctor immediately.");
+    }
+
+    // Blue Light
+    if (blue) {
+      if (blue < 2) suggestions.push("✅ Blue light exposure is safe.");
+      else if (blue <= 5) suggestions.push("⚠️ Moderate blue light exposure – reduce screen use or wear filter glasses.");
+      else suggestions.push("🚨 Excessive blue light – use protective glasses and reduce usage.");
+    }
+
+    // Screen Time
+    if (screen) {
+      if (screen < 4) suggestions.push("✅ Screen usage is within healthy range.");
+      else if (screen <= 8) suggestions.push("⚠️ High screen time – follow 20-20-20 rule (every 20 min, look 20 ft away for 20 sec).");
+      else suggestions.push("🚨 Dangerous screen time – reduce usage and take frequent breaks.");
+    }
+
+    // Blink Rate
+    if (blink) {
+      if (blink >= 15) suggestions.push("✅ Blink rate is healthy.");
+      else if (blink >= 10) suggestions.push("⚠️ Slightly low blink rate – try blinking exercises (5 quick blinks every 30 mins).");
+      else suggestions.push("🚨 Very low blink rate – take immediate breaks and use eye lubrication.");
+    }
+
+    const list = document.getElementById("suggestionList");
+    list.innerHTML = "";
+    suggestions.forEach(s => {
+      const li = document.createElement("li");
+      li.className = "list-group-item";
+      li.textContent = s;
+      list.appendChild(li);
     });
   }
 
@@ -198,6 +255,7 @@
         document.getElementById("blue-value").innerText = data.blue_light ?? 'N/A';
         document.getElementById("screen-value").innerText = data.screen_time ?? 'N/A';
         document.getElementById("blink-value").innerText = data.blink_rate ?? 'N/A';
+        generateSuggestions();
       });
   }, 5000);
 
