@@ -26,6 +26,7 @@
       justify-content: center;
       font-family: 'Segoe UI', sans-serif;
       overflow: hidden;
+      flex-direction: column;
     }
 
     @keyframes bgAnimation {
@@ -60,7 +61,7 @@
       width: 100%;
       max-width: 400px;
       opacity: 0;
-      transform: translateY(50px);
+      transform: scale(0.8);
     }
 
     .form-control:focus {
@@ -78,7 +79,9 @@
 
     .lottie-icon {
       height: 120px;
-      margin: 0 auto 1rem auto;
+      margin: 0 auto 1.5rem auto;
+      opacity: 0;
+      transform: translateY(50px);
     }
 
     .btn-primary {
@@ -100,10 +103,14 @@
   <button class="btn btn-sm btn-outline-light" onclick="toggleDarkMode()">Toggle Dark Mode</button>
 </div>
 
-<div class="login-box" id="loginBox">
-  <!-- Lottie Animation -->
-  <div class="lottie-icon" id="lottie-eye"></div>
+<!-- Eye-Q Logo -->
 
+
+<!-- Login Window -->
+<div class="login-box" id="loginBox">
+<img src="{{ url_for('static', filename='EYE_Q_LOGO.png') }}" 
+     alt="Eye-Q Logo" 
+     style="height: 80px; margin-bottom: 40px;">
   <!-- Flask Alerts -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -129,12 +136,33 @@
 
 <!-- Scripts -->
 <script>
-  // Slide in animation
-  gsap.to("#loginBox", {
-    duration: 1.2,
-    opacity: 1,
-    y: 0,
-    ease: "power3.out"
+  // Lottie animation
+  lottie.loadAnimation({
+    container: document.getElementById("lottie-eye"),
+    renderer: "svg",
+    loop: true,
+    autoplay: true,
+    path: "https://assets3.lottiefiles.com/packages/lf20_ugedaiiv.json" // Eye animation
+  });
+
+  // Sequential animations
+  window.addEventListener("load", () => {
+    // Step 1: Slide up logo
+    gsap.to("#lottie-eye", {
+      duration: 1,
+      opacity: 1,
+      y: -30,
+      ease: "power3.out",
+      onComplete: () => {
+        // Step 2: Show login box
+        gsap.to("#loginBox", {
+          duration: 1,
+          opacity: 1,
+          scale: 1,
+          ease: "back.out(1.7)"
+        });
+      }
+    });
   });
 
   // Animate alerts
@@ -145,15 +173,6 @@
     stagger: 0.1
   });
 
-  // Lottie animation
-  lottie.loadAnimation({
-    container: document.getElementById("lottie-eye"),
-    renderer: "svg",
-    loop: true,
-    autoplay: true,
-    path: "https://assets3.lottiefiles.com/packages/lf20_ugedaiiv.json" // Eye animation
-  });
-
   // Dark mode toggle
   function toggleDarkMode() {
     document.body.classList.toggle("dark-mode");
@@ -161,11 +180,9 @@
   }
 
   // Load saved theme
-  window.onload = () => {
-    if (localStorage.getItem('theme') === 'dark') {
-      document.body.classList.add("dark-mode");
-    }
-  };
+  if (localStorage.getItem('theme') === 'dark') {
+    document.body.classList.add("dark-mode");
+  }
 </script>
 
 </body>
