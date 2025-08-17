@@ -148,10 +148,10 @@
   new Chart(document.getElementById("iopChart"), {
     type: 'line',
     data: {
-      labels: {{ iop.timestamps|tojson }},
+      labels: {{ iop["timestamps"]|tojson }},
       datasets: [{
         label: 'IOP (mmHg)',
-        data: {{ iop.values|tojson }},
+        data: {{ iop["values"]|tojson }},
         borderColor: '#0d6efd',
         backgroundColor: 'rgba(13,110,253,0.1)',
         fill: true
@@ -161,10 +161,10 @@
   new Chart(document.getElementById("blinkChart"), {
     type: 'line',
     data: {
-      labels: {{ blink_rate.timestamps|tojson }},
+      labels: {{ blink_rate["timestamps"]|tojson }},
       datasets: [{
         label: 'Blink Rate (blinks/min)',
-        data: {{ blink_rate.values|tojson }},
+        data: {{ blink_rate["values"]|tojson }},
         borderColor: '#17a2b8',
         backgroundColor: 'rgba(23,162,184,0.1)',
         fill: true
@@ -174,10 +174,10 @@
   new Chart(document.getElementById("screenChart"), {
     type: 'line',
     data: {
-      labels: {{ screen_time.timestamps|tojson }},
+      labels: {{ screen_time["timestamps"]|tojson }},
       datasets: [{
         label: 'Screen Time (hrs)',
-        data: {{ screen_time.values|tojson }},
+        data: {{ screen_time["values"]|tojson }},
         borderColor: '#28a745',
         backgroundColor: 'rgba(40,167,69,0.1)',
         fill: true
@@ -187,10 +187,10 @@
   new Chart(document.getElementById("blueLightChart"), {
     type: 'line',
     data: {
-      labels: {{ blue_light.timestamps|tojson }},
+      labels: {{ blue_light["timestamps"]|tojson }},
       datasets: [{
         label: 'Blue Light Exposure (units)',
-        data: {{ blue_light.values|tojson }},
+        data: {{ blue_light["values"]|tojson }},
         borderColor: '#ffc107',
         backgroundColor: 'rgba(255,193,7,0.1)',
         fill: true
