@@ -6,12 +6,12 @@ import uuid
 import random
 import smtplib
 from datetime import datetime, timedelta
-from flask import send_file
-import io
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    session, flash, jsonify
+)
 from email.message import EmailMessage
 
 # Firebase
@@ -60,7 +60,6 @@ if not firebase_admin._apps:
 
 # ------------------ DB HELPERS ------------------
 def email_to_key(email: str) -> str:
-    # For users_by_email mapping keys
     return email.replace('.', ',').lower()
 
 def get_users_ref():
@@ -121,6 +120,7 @@ def insert_iop_log(uid: str, iop: float, blue_light: float = None, screen_time: 
         "iop": float(iop) if iop is not None else None,
         "blue_light": float(blue_light) if blue_light is not None else None,
         "screen_time": float(screen_time) if screen_time is not None else None,
+        "blink_rate": None,  # ensure key present; update if you collect this in your device
         "device_id": device_id or "",
         "timestamp_iso": now.isoformat() + "Z",
         "timestamp_epoch": epoch,
@@ -256,27 +256,30 @@ def dashboard():
 
     # Use dummy data if no sensor data yet
     if not rows:
+        now = datetime.utcnow()
         rows = [
             {
                 "iop": 15,
                 "blue_light": 20,
                 "screen_time": 3,
                 "blink_rate": 12,
-                "timestamp_iso": datetime.now().isoformat()
+                "timestamp_iso": (now - timedelta(minutes=5)).isoformat() + "Z",
+                "timestamp_epoch": int((now - timedelta(minutes=5)).timestamp())
             },
             {
                 "iop": 16,
                 "blue_light": 22,
                 "screen_time": 4,
                 "blink_rate": 15,
-                "timestamp_iso": datetime.now().isoformat()
+                "timestamp_iso": now.isoformat() + "Z",
+                "timestamp_epoch": int(now.timestamp())
             }
         ]
 
-    iop_values = [r.get("iop", 0) for r in rows]
-    blue_values = [r.get("blue_light", 0) for r in rows]
-    screen_values = [r.get("screen_time", 0) for r in rows]
-    blink_values = [r.get("blink_rate", 0) for r in rows]
+    iop_values = [r.get("iop", None) for r in rows]
+    blue_values = [r.get("blue_light", None) for r in rows]
+    screen_values = [r.get("screen_time", None) for r in rows]
+    blink_values = [r.get("blink_rate", None) for r in rows]
 
     timestamps = []
     for r in rows:
@@ -312,8 +315,6 @@ def dashboard():
         screen_time={"values": screen_values, "timestamps": timestamps},
         blink_rate={"values": blink_values, "timestamps": timestamps}
     )
-
-
 
 @app.route("/history")
 def history():
@@ -363,28 +364,21 @@ def report():
     user_id = user["id"]
     rows = get_latest_logs(user_id, limit=10)  # returns list sorted oldest->newest
 
-    # Prepare arrays (use None so the template can show 'N/A'; JS charts like numbers or null)
-    iop_values = []
-    blue_values = []
-    screen_values = []
-    blink_values = []
-    timestamps = []
+    # Prepare arrays
+    iop_values, blue_values, screen_values, blink_values, timestamps = [], [], [], [], []
 
     for r in rows:
-        # numeric values or None
         iop_values.append(r.get("iop") if r.get("iop") is not None else None)
         blue_values.append(r.get("blue_light") if r.get("blue_light") is not None else None)
         screen_values.append(r.get("screen_time") if r.get("screen_time") is not None else None)
         blink_values.append(r.get("blink_rate") if r.get("blink_rate") is not None else None)
 
-        # timestamp: try ISO first, fallback to epoch, else empty string
         t_iso = r.get("timestamp_iso")
         if t_iso:
             try:
                 ts = datetime.fromisoformat(t_iso.replace("Z", ""))
                 timestamps.append(ts.strftime("%Y-%m-%d %H:%M"))
             except Exception:
-                # fallback to epoch if exists
                 epoch = r.get("timestamp_epoch")
                 if epoch:
                     try:
@@ -405,7 +399,7 @@ def report():
             else:
                 timestamps.append("")
 
-    latest = rows[-1] if rows else None
+    latest = rows[-1] if rows else {}
 
     # Alerts (include blink_rate thresholds)
     alerts = []
@@ -416,26 +410,41 @@ def report():
             alerts.append("High blue light exposure. Consider reducing screen brightness or using protective eyewear.")
         if latest.get("screen_time") is not None and latest["screen_time"] > 5:
             alerts.append("Long screen time detected. Take regular breaks.")
-        # example blink_rate thresholds — tweak as needed
         if latest.get("blink_rate") is not None:
             br = latest["blink_rate"]
             if br < 8:
                 alerts.append("Very low blink rate detected — risk of dry eyes.")
             elif br < 15:
-                alerts.append("Low blink rate detected — try following 20-20-20 rule.")
+                alerts.append("Low blink rate detected — try following the 20-20-20 rule.")
 
-    # Pass everything to template. Use keys that templates expect (iop, blue_light, screen_time, blink_rate).
+    # Put name from user record if present; let client override via /set_patient_name
+    patient_name = session.get("patient_name") or user.get("name", "")
+
     return render_template(
         "report.html",
-        data=latest,
+        data=latest or {},
         alerts=alerts,
         report_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
-        patient_name=user.get("name", ""),
+        patient_name=patient_name,
         iop={"values": iop_values, "timestamps": timestamps},
         blue_light={"values": blue_values, "timestamps": timestamps},
         screen_time={"values": screen_values, "timestamps": timestamps},
         blink_rate={"values": blink_values, "timestamps": timestamps},
     )
+
+@app.route("/set_patient_name", methods=["POST"])
+def set_patient_name():
+    """
+    Store patient_name in session so the report shows it and persists
+    across refreshes for this session.
+    """
+    if not session.get("authenticated"):
+        return jsonify({"ok": False, "msg": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("patient_name") or "").strip()
+    session["patient_name"] = name
+    return jsonify({"ok": True, "patient_name": name})
 
 @app.route("/hospitals")
 def hospitals():
@@ -451,6 +460,7 @@ def send_data():
     blue_light = data.get("blue_light")
     screen_time = data.get("screen_time")
     device_id = data.get("device_id")
+    blink_rate = data.get("blink_rate")
 
     if not email or iop is None:
         return jsonify({"status": "error", "msg": "Missing required data"}), 400
@@ -460,8 +470,24 @@ def send_data():
         return jsonify({"status": "error", "msg": "User not found"}), 404
 
     user_id = user["id"]
-    inserted = insert_iop_log(user_id, iop, blue_light, screen_time, device_id)
-    return jsonify({"status": "success", "msg": "Data stored", "data": inserted})
+    # store blink_rate if provided
+    now = datetime.utcnow()
+    epoch = int(now.timestamp())
+    log_id = str(uuid.uuid4())
+    log_obj = {
+        "id": log_id,
+        "user_id": user_id,
+        "iop": float(iop) if iop is not None else None,
+        "blue_light": float(blue_light) if blue_light is not None else None,
+        "screen_time": float(screen_time) if screen_time is not None else None,
+        "blink_rate": float(blink_rate) if blink_rate is not None else None,
+        "device_id": device_id or "",
+        "timestamp_iso": now.isoformat() + "Z",
+        "timestamp_epoch": epoch,
+    }
+    get_iop_logs_ref(user_id).child(log_id).set(log_obj)
+
+    return jsonify({"status": "success", "msg": "Data stored", "data": log_obj})
 
 @app.route("/api/latest_data")
 def latest_data():
@@ -474,25 +500,6 @@ def latest_data():
     user_id = user["id"]
     row = get_latest_log(user_id)
     return jsonify(row or {})
-def download_report():
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer)
-    styles = getSampleStyleSheet()
-    elements = []
-
-    elements.append(Paragraph("Eye-Q Health Report", styles['Title']))
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(f"Patient: {session.get('patient_name', 'N/A')}", styles['Normal']))
-    elements.append(Paragraph(f"Email: {session.get('email', 'N/A')}", styles['Normal']))
-    elements.append(Paragraph(f"Phone: {session.get('phone', 'N/A')}", styles['Normal']))
-    elements.append(Spacer(1, 12))
-
-    # You can add metrics & suggestions here as well
-    elements.append(Paragraph("Metrics & AI Suggestions included...", styles['Normal']))
-
-    doc.build(elements)
-    buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name="EyeQ_Report.pdf", mimetype="application/pdf")
 
 # ------------------ MAIN ------------------
 if __name__ == "__main__":
