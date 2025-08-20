@@ -1,4 +1,8 @@
-# app.py (env-only, no secrets in code)
+# app.py — Option A (Website reads /eyeq_data)
+# - Keeps your OTP login + users mapping
+# - Reads live values from /eyeq_data
+# - Reads history (if available) from /eyeq_data_history (optional)
+# - /send_data now writes to /eyeq_data and appends to /eyeq_data_history for testing
 
 import os
 import json
@@ -6,15 +10,15 @@ import uuid
 import random
 import smtplib
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 
 from dotenv import load_dotenv
 from flask import (
     Flask, render_template, request, redirect, url_for,
     session, flash, jsonify
 )
-from email.message import EmailMessage
 
-# Firebase
+# Firebase Admin SDK (server-side)
 import firebase_admin
 from firebase_admin import credentials, db
 
@@ -26,7 +30,7 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Gmail App Password recommended
 FIREBASE_DB_URL = os.getenv("FIREBASE_DB_URL")
 FIREBASE_CREDENTIALS = os.getenv("FIREBASE_CREDENTIALS")  # JSON string (preferred)
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  # fallback path
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  # file path fallback
 
 missing = [k for k, v in {
     "SECRET_KEY": SECRET_KEY,
@@ -39,7 +43,7 @@ if missing:
 
 # ------------------ FLASK APP ------------------
 app = Flask(__name__)
-app.secret_key = SECRET_KEY  # stable key so sessions survive restarts
+app.secret_key = SECRET_KEY
 
 # ------------------ FIREBASE INIT ------------------
 if not firebase_admin._apps:
@@ -68,20 +72,13 @@ def get_users_ref():
 def get_users_by_email_ref():
     return db.reference("users_by_email")
 
-def get_iop_logs_ref(uid: str):
-    return db.reference(f"iop_logs/{uid}")
+def get_eyeq_data_ref():
+    """Current live snapshot the Pi writes to."""
+    return db.reference("eyeq_data")
 
-def get_reports_ref(uid: str):
-    return db.reference(f"reports/{uid}")
-
-def get_alerts_ref(uid: str):
-    return db.reference(f"alerts/{uid}")
-
-def get_devices_ref(uid: str):
-    return db.reference(f"devices/{uid}")
-
-def get_activity_logs_ref(uid: str):
-    return db.reference(f"activity_logs/{uid}")
+def get_eyeq_history_ref():
+    """Optional history stream (this app will read if it exists; /send_data writes to it)."""
+    return db.reference("eyeq_data_history")
 
 # ------------------ USERS ------------------
 def create_user_if_not_exists(email: str, name: str = None) -> str:
@@ -109,46 +106,75 @@ def get_user_by_email(email: str):
         return None
     return get_users_ref().child(uid).get()
 
-# ------------------ IOP LOGS ------------------
-def insert_iop_log(uid: str, iop: float, blue_light: float = None, screen_time: float = None, device_id: str = None):
-    now = datetime.utcnow()
-    epoch = int(now.timestamp())
-    log_id = str(uuid.uuid4())
-    log_obj = {
-        "id": log_id,
-        "user_id": uid,
-        "iop": float(iop) if iop is not None else None,
-        "blue_light": float(blue_light) if blue_light is not None else None,
-        "screen_time": float(screen_time) if screen_time is not None else None,
-        "blink_rate": None,  # ensure key present; update if you collect this in your device
-        "device_id": device_id or "",
-        "timestamp_iso": now.isoformat() + "Z",
-        "timestamp_epoch": epoch,
+# ------------------ EYEQ DATA READ/WRITE ------------------
+def coerce_float(v, default=None):
+    try:
+        if v is None or v == "":
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+def fetch_eyeq_data():
+    """
+    Returns the current live dict at /eyeq_data, normalized with expected keys:
+    iop, blue_light, screen_time, blink_rate, iop_status, blue_level, blue_lux, timestamp_iso, timestamp_epoch
+    """
+    raw = get_eyeq_data_ref().get() or {}
+    # Known keys from your Pi payloads: blink_count, blue_level, blue_lux, iop/iop_value, iop_status, timestamp
+    iop_val = raw.get("iop") or raw.get("iop_value")
+    ts_iso = raw.get("timestamp") or raw.get("timestamp_iso")
+    # Normalize timestamp_epoch
+    try:
+        ts_epoch = int(datetime.fromisoformat(ts_iso.replace("Z", "")).timestamp()) if ts_iso else None
+    except Exception:
+        ts_epoch = None
+
+    normalized = {
+        "iop": coerce_float(iop_val),
+        "blue_light": coerce_float(raw.get("blue_lux")),  # treat blue_lux as numeric blue light level
+        "screen_time": coerce_float(raw.get("screen_time")),  # only if you ever set it
+        "blink_rate": coerce_float(raw.get("blink_rate")),    # only if you ever set it
+        "blink_count": int(raw.get("blink_count") or 0),
+        "iop_status": raw.get("iop_status") or raw.get("status") or "--",
+        "blue_level": raw.get("blue_level") or "Unknown",
+        "blue_lux": coerce_float(raw.get("blue_lux")),
+        "timestamp_iso": ts_iso or "",
+        "timestamp_epoch": ts_epoch,
+        # passthroughs
+        "device_id": raw.get("device_id") or "",
     }
-    get_iop_logs_ref(uid).child(log_id).set(log_obj)
-    return log_obj
+    return normalized
 
-def get_latest_logs(uid: str, limit=10):
-    ref = get_iop_logs_ref(uid)
-    snapshot = ref.order_by_child("timestamp_epoch").limit_to_last(limit).get()
-    if not snapshot:
+def fetch_eyeq_history(limit=50, start_epoch=None, end_epoch=None):
+    """
+    Reads /eyeq_data_history ordered by timestamp_epoch.
+    If your Pi doesn’t write this node, you’ll simply get [].
+    """
+    ref = get_eyeq_history_ref()
+    q = ref.order_by_child("timestamp_epoch")
+    if start_epoch is not None and end_epoch is not None:
+        snap = q.start_at(start_epoch).end_at(end_epoch).get()
+    else:
+        snap = q.limit_to_last(limit).get()
+    if not snap:
         return []
-    logs = list(snapshot.values())
-    logs.sort(key=lambda r: r.get("timestamp_epoch", 0))
-    return logs
 
-def get_logs_between(uid: str, start_epoch: int, end_epoch: int):
-    ref = get_iop_logs_ref(uid)
-    snapshot = ref.order_by_child("timestamp_epoch").start_at(start_epoch).end_at(end_epoch).get()
-    if not snapshot:
-        return []
-    logs = list(snapshot.values())
-    logs.sort(key=lambda r: r.get("timestamp_epoch", 0), reverse=True)
-    return logs
+    rows = list(snap.values())
+    rows.sort(key=lambda r: r.get("timestamp_epoch", 0))
+    # Coerce expected numeric fields
+    for r in rows:
+        r["iop"] = coerce_float(r.get("iop"))
+        r["blue_light"] = coerce_float(r.get("blue_light"))
+        r["screen_time"] = coerce_float(r.get("screen_time"))
+        r["blink_rate"] = coerce_float(r.get("blink_rate"))
+    return rows
 
-def get_latest_log(uid: str):
-    logs = get_latest_logs(uid, limit=1)
-    return logs[-1] if logs else None
+def append_eyeq_history(row: dict):
+    """Append one item into /eyeq_data_history with a generated id."""
+    log_id = row.get("id") or str(uuid.uuid4())
+    get_eyeq_history_ref().child(log_id).set({**row, "id": log_id})
+    return log_id
 
 # ------------------ EMAIL OTP ------------------
 def send_email_otp(to_email):
@@ -245,41 +271,20 @@ def dashboard():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
-    email = session["email"]
-    user = get_user_by_email(email)
-    if not user:
-        flash("User not found.", "danger")
-        return redirect(url_for("login"))
+    # Read the live snapshot directly from /eyeq_data
+    latest = fetch_eyeq_data()
 
-    user_id = user["id"]
-    rows = get_latest_logs(user_id, limit=10)
+    # Also try to get a short tail from history if it exists (optional)
+    rows = fetch_eyeq_history(limit=10)
+    # If history is empty, build a minimal single-point series from latest (if any)
+    if not rows and latest and latest.get("timestamp_epoch"):
+        rows = [latest]
 
-    # Use dummy data if no sensor data yet
-    if not rows:
-        now = datetime.utcnow()
-        rows = [
-            {
-                "iop": 15,
-                "blue_light": 20,
-                "screen_time": 3,
-                "blink_rate": 12,
-                "timestamp_iso": (now - timedelta(minutes=5)).isoformat() + "Z",
-                "timestamp_epoch": int((now - timedelta(minutes=5)).timestamp())
-            },
-            {
-                "iop": 16,
-                "blue_light": 22,
-                "screen_time": 4,
-                "blink_rate": 15,
-                "timestamp_iso": now.isoformat() + "Z",
-                "timestamp_epoch": int(now.timestamp())
-            }
-        ]
-
-    iop_values = [r.get("iop", None) for r in rows]
-    blue_values = [r.get("blue_light", None) for r in rows]
-    screen_values = [r.get("screen_time", None) for r in rows]
-    blink_values = [r.get("blink_rate", None) for r in rows]
+    # Build series for charts
+    iop_values = [r.get("iop") for r in rows]
+    blue_values = [r.get("blue_light") for r in rows]
+    screen_values = [r.get("screen_time") for r in rows]
+    blink_values = [r.get("blink_rate") for r in rows]
 
     timestamps = []
     for r in rows:
@@ -292,8 +297,6 @@ def dashboard():
                 timestamps.append("")
         else:
             timestamps.append("")
-
-    latest = rows[-1] if rows else None
 
     alerts = []
     if latest:
@@ -308,7 +311,7 @@ def dashboard():
 
     return render_template(
         "dashboard.html",
-        data=latest,
+        data=latest or {},
         alerts=alerts,
         iop={"values": iop_values, "timestamps": timestamps},
         blue_light={"values": blue_values, "timestamps": timestamps},
@@ -321,10 +324,9 @@ def history():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
-    email = session["email"]
+    # Date range (optional)
     start = request.args.get("start")
     end = request.args.get("end")
-
     try:
         start_date = datetime.strptime(start, "%Y-%m-%d") if start else datetime.utcnow() - timedelta(days=7)
         end_date = datetime.strptime(end, "%Y-%m-%d") if end else datetime.utcnow()
@@ -332,16 +334,10 @@ def history():
         start_date = datetime.utcnow() - timedelta(days=7)
         end_date = datetime.utcnow()
 
-    user = get_user_by_email(email)
-    if not user:
-        flash("User not found.", "danger")
-        return redirect(url_for("login"))
-
-    user_id = user["id"]
     start_epoch = int(start_date.timestamp())
     end_epoch = int(end_date.timestamp())
 
-    logs = get_logs_between(user_id, start_epoch, end_epoch)
+    logs = fetch_eyeq_history(start_epoch=start_epoch, end_epoch=end_epoch)
 
     return render_template(
         "history.html",
@@ -355,23 +351,19 @@ def report():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
-    email = session.get("email")
-    user = get_user_by_email(email)
-    if not user:
-        flash("User not found.", "danger")
-        return redirect(url_for("login"))
+    # Use last 10 historical points if available; otherwise, include latest only
+    rows = fetch_eyeq_history(limit=10)
+    latest = fetch_eyeq_data()
+    if not rows and latest and latest.get("timestamp_epoch"):
+        rows = [latest]
 
-    user_id = user["id"]
-    rows = get_latest_logs(user_id, limit=10)  # returns list sorted oldest->newest
-
-    # Prepare arrays
     iop_values, blue_values, screen_values, blink_values, timestamps = [], [], [], [], []
 
     for r in rows:
-        iop_values.append(r.get("iop") if r.get("iop") is not None else None)
-        blue_values.append(r.get("blue_light") if r.get("blue_light") is not None else None)
-        screen_values.append(r.get("screen_time") if r.get("screen_time") is not None else None)
-        blink_values.append(r.get("blink_rate") if r.get("blink_rate") is not None else None)
+        iop_values.append(r.get("iop"))
+        blue_values.append(r.get("blue_light"))
+        screen_values.append(r.get("screen_time"))
+        blink_values.append(r.get("blink_rate"))
 
         t_iso = r.get("timestamp_iso")
         if t_iso:
@@ -379,50 +371,35 @@ def report():
                 ts = datetime.fromisoformat(t_iso.replace("Z", ""))
                 timestamps.append(ts.strftime("%Y-%m-%d %H:%M"))
             except Exception:
-                epoch = r.get("timestamp_epoch")
-                if epoch:
-                    try:
-                        ts2 = datetime.utcfromtimestamp(int(epoch))
-                        timestamps.append(ts2.strftime("%Y-%m-%d %H:%M"))
-                    except Exception:
-                        timestamps.append("")
-                else:
-                    timestamps.append("")
-        else:
-            epoch = r.get("timestamp_epoch")
-            if epoch:
-                try:
-                    ts2 = datetime.utcfromtimestamp(int(epoch))
-                    timestamps.append(ts2.strftime("%Y-%m-%d %H:%M"))
-                except Exception:
-                    timestamps.append("")
-            else:
                 timestamps.append("")
+        else:
+            timestamps.append("")
 
-    latest = rows[-1] if rows else {}
+    latest_row = rows[-1] if rows else (latest or {})
 
-    # Alerts (include blink_rate thresholds)
     alerts = []
-    if latest:
-        if latest.get("iop") is not None and latest["iop"] > 21:
+    if latest_row:
+        if latest_row.get("iop") is not None and latest_row["iop"] > 21:
             alerts.append("High IOP detected. Please consult a doctor.")
-        if latest.get("blue_light") is not None and latest["blue_light"] > 25:
+        if latest_row.get("blue_light") is not None and latest_row["blue_light"] > 25:
             alerts.append("High blue light exposure. Consider reducing screen brightness or using protective eyewear.")
-        if latest.get("screen_time") is not None and latest["screen_time"] > 5:
+        if latest_row.get("screen_time") is not None and latest_row["screen_time"] > 5:
             alerts.append("Long screen time detected. Take regular breaks.")
-        if latest.get("blink_rate") is not None:
-            br = latest["blink_rate"]
+        br = latest_row.get("blink_rate")
+        if br is not None:
             if br < 8:
                 alerts.append("Very low blink rate detected — risk of dry eyes.")
             elif br < 15:
                 alerts.append("Low blink rate detected — try following the 20-20-20 rule.")
 
-    # Put name from user record if present; let client override via /set_patient_name
-    patient_name = session.get("patient_name") or user.get("name", "")
+    # Optional: show user name if present
+    email = session.get("email")
+    user = get_user_by_email(email) if email else None
+    patient_name = session.get("patient_name") or (user.get("name", "") if user else "")
 
     return render_template(
         "report.html",
-        data=latest or {},
+        data=latest_row or {},
         alerts=alerts,
         report_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
         patient_name=patient_name,
@@ -434,13 +411,8 @@ def report():
 
 @app.route("/set_patient_name", methods=["POST"])
 def set_patient_name():
-    """
-    Store patient_name in session so the report shows it and persists
-    across refreshes for this session.
-    """
     if not session.get("authenticated"):
         return jsonify({"ok": False, "msg": "unauthorized"}), 401
-
     data = request.get_json(silent=True) or {}
     name = (data.get("patient_name") or "").strip()
     session["patient_name"] = name
@@ -452,53 +424,50 @@ def hospitals():
         return redirect(url_for("login"))
     return render_template("hospitals.html")
 
+# -------- Optional: test ingestion endpoint (writes to /eyeq_data + /eyeq_data_history) --------
 @app.route("/send_data", methods=["POST"])
 def send_data():
-    data = request.get_json()
-    email = data.get("email")
-    iop = data.get("iop")
-    blue_light = data.get("blue_light")
-    screen_time = data.get("screen_time")
-    device_id = data.get("device_id")
-    blink_rate = data.get("blink_rate")
+    data = request.get_json() or {}
 
-    if not email or iop is None:
-        return jsonify({"status": "error", "msg": "Missing required data"}), 400
+    # Accept any subset; coerce as needed
+    iop = coerce_float(data.get("iop"))
+    blue_light = coerce_float(data.get("blue_light") or data.get("blue_lux"))
+    screen_time = coerce_float(data.get("screen_time"))
+    blink_rate = coerce_float(data.get("blink_rate"))
+    iop_status = data.get("iop_status") or data.get("status") or "--"
+    blue_level = data.get("blue_level") or "Unknown"
+    device_id = data.get("device_id") or ""
 
-    user = get_user_by_email(email)
-    if not user:
-        return jsonify({"status": "error", "msg": "User not found"}), 404
-
-    user_id = user["id"]
-    # store blink_rate if provided
     now = datetime.utcnow()
     epoch = int(now.timestamp())
+    ts_iso = now.isoformat() + "Z"
     log_id = str(uuid.uuid4())
-    log_obj = {
+
+    # Compose normalized row
+    row = {
         "id": log_id,
-        "user_id": user_id,
-        "iop": float(iop) if iop is not None else None,
-        "blue_light": float(blue_light) if blue_light is not None else None,
-        "screen_time": float(screen_time) if screen_time is not None else None,
-        "blink_rate": float(blink_rate) if blink_rate is not None else None,
-        "device_id": device_id or "",
-        "timestamp_iso": now.isoformat() + "Z",
+        "iop": iop,
+        "blue_light": blue_light,
+        "screen_time": screen_time,
+        "blink_rate": blink_rate,
+        "iop_status": iop_status,
+        "blue_level": blue_level,
+        "blue_lux": blue_light,
+        "device_id": device_id,
+        "timestamp_iso": ts_iso,
         "timestamp_epoch": epoch,
     }
-    get_iop_logs_ref(user_id).child(log_id).set(log_obj)
 
-    return jsonify({"status": "success", "msg": "Data stored", "data": log_obj})
+    # Set live snapshot
+    get_eyeq_data_ref().set(row)
+    # Append to history (so history/report have data)
+    append_eyeq_history(row)
+
+    return jsonify({"status": "success", "msg": "Data stored", "data": row})
 
 @app.route("/api/latest_data")
 def latest_data():
-    email = session.get("email")
-    if not email:
-        return jsonify({})
-    user = get_user_by_email(email)
-    if not user:
-        return jsonify({})
-    user_id = user["id"]
-    row = get_latest_log(user_id)
+    row = fetch_eyeq_data()
     return jsonify(row or {})
 
 # ------------------ MAIN ------------------
